@@ -1,10 +1,18 @@
 #include "key.h"
+#include "main.h"
 #include "stm32f1xx_hal.h"
 #include <string.h>
 
+/* key_bits() reads the whole nibble at once, so the four keys must be that
+ * nibble. Reordering them in the .ioc breaks this assertion rather than
+ * silently mapping KEY1 onto the wrong bit. */
+_Static_assert(KEY1_Pin == GPIO_PIN_12 && KEY2_Pin == GPIO_PIN_13 &&
+               KEY3_Pin == GPIO_PIN_14 && KEY4_Pin == GPIO_PIN_15,
+               "key_bits() assumes KEY1..KEY4 are PB12..PB15");
+
 /* PB12..PB15 as key bits 0..3, the same order key_bits() produces. */
 static const uint16_t key_pins[KEY_COUNT] = {
-    GPIO_PIN_12, GPIO_PIN_13, GPIO_PIN_14, GPIO_PIN_15
+    KEY1_Pin, KEY2_Pin, KEY3_Pin, KEY4_Pin
 };
 
 /* Lines the EXTI handler has seen a falling edge on but the main loop has not
@@ -13,7 +21,8 @@ static volatile uint8_t exti_pending;
 
 static uint8_t key_bits(void)
 {
-    return (uint8_t)((~GPIOB->IDR >> 12) & 15u);
+    /* Active low, so invert: a pressed key reads as 1. */
+    return (uint8_t)(~(KEY1_GPIO_Port->IDR >> 12) & 15u);
 }
 
 void key_init(key_t *keys)

@@ -97,7 +97,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  app_init(&app, &hadc1, &hi2c2, &htim2);
+  app_init(&app, &hadc1, &hi2c2, &hi2c1, &htim2);
   /* USER CODE END 2 */
 
   /* Infinite loop */

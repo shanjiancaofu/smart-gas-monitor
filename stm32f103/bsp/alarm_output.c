@@ -1,13 +1,9 @@
 #include "alarm_output.h"
 
-/* CubeMX carries no User Labels on these pins yet, so the mapping lives here.
- * Swap for the generated *_GPIO_Port / *_Pin macros once they are labelled. */
-#define VALVE_LED_PIN  GPIO_PIN_5  /* PA5, valve command state, not feedback */
-#define LED_RED_PIN    GPIO_PIN_6  /* PA6 */
-#define BUZZER_PIN     GPIO_PIN_7  /* PA7 */
-#define RELAY_PIN      GPIO_PIN_8  /* PA8 */
-#define LED_GREEN_PIN  GPIO_PIN_8  /* PB8 */
-#define LED_YELLOW_PIN GPIO_PIN_9  /* PB9 */
+/* Pin names come from the CubeMX User Labels, so a pin move in the .ioc shows
+ * up here as a compile error instead of a silently dead output. */
+static bool buzzer_alarm;
+static uint32_t buzzer_start_ms;
 
 static GPIO_PinState opposite(GPIO_PinState level)
 {
@@ -16,26 +12,39 @@ static GPIO_PinState opposite(GPIO_PinState level)
 
 void alarm_output_force_safe(void)
 {
-    HAL_GPIO_WritePin(GPIOA, RELAY_PIN, opposite(RELAY_OPEN_LEVEL));
-    HAL_GPIO_WritePin(GPIOA, VALVE_LED_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(RELAY_GPIO_Port, RELAY_Pin, opposite(RELAY_OPEN_LEVEL));
+    HAL_GPIO_WritePin(VALVE_LED_GPIO_Port, VALVE_LED_Pin, GPIO_PIN_RESET);
 }
 
 void alarm_output_init(void)
 {
+    buzzer_alarm = false;
+    buzzer_start_ms = 0;
     alarm_output_force_safe();
-    HAL_GPIO_WritePin(GPIOA, BUZZER_PIN, opposite(BUZZER_ON_LEVEL));
-    HAL_GPIO_WritePin(GPIOA, LED_RED_PIN, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPIOB, LED_GREEN_PIN | LED_YELLOW_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, opposite(BUZZER_ON_LEVEL));
+    HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_RESET);
 }
 
-void alarm_output_apply(bool valve_open, bool green, bool yellow, bool alarm)
+void alarm_output_apply(bool valve_open, bool green, bool yellow, bool alarm,
+                        uint32_t now)
 {
-    HAL_GPIO_WritePin(GPIOA, RELAY_PIN,
+    bool buzzer_on;
+    /* A fresh alarm restarts the window; the alarm staying on does not. */
+    if (alarm && !buzzer_alarm) buzzer_start_ms = now;
+    buzzer_alarm = alarm;
+    buzzer_on = alarm && (uint32_t)(now - buzzer_start_ms) < BUZZER_ALARM_MS;
+    HAL_GPIO_WritePin(RELAY_GPIO_Port, RELAY_Pin,
                       valve_open ? RELAY_OPEN_LEVEL : opposite(RELAY_OPEN_LEVEL));
-    HAL_GPIO_WritePin(GPIOA, VALVE_LED_PIN, valve_open ? GPIO_PIN_SET : GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPIOA, LED_RED_PIN, alarm ? GPIO_PIN_SET : GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPIOA, BUZZER_PIN,
-                      alarm ? BUZZER_ON_LEVEL : opposite(BUZZER_ON_LEVEL));
-    HAL_GPIO_WritePin(GPIOB, LED_GREEN_PIN, green ? GPIO_PIN_SET : GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPIOB, LED_YELLOW_PIN, yellow ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(VALVE_LED_GPIO_Port, VALVE_LED_Pin,
+                      valve_open ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin,
+                      alarm ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin,
+                      buzzer_on ? BUZZER_ON_LEVEL : opposite(BUZZER_ON_LEVEL));
+    HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin,
+                      green ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin,
+                      yellow ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }

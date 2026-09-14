@@ -5,12 +5,16 @@
 
 /* Values are indexed MQ4, MQ7, MQ8 and must stay in gas_channel_t order. */
 #define MQ_SENSOR_CHANNELS 3u
+/* Conversions averaged per channel. The MQ outputs carry mains hum and the
+ * heater switching noise, so one conversion is not a stable reading. */
+#define MQ_SENSOR_AVERAGES 8u
 
 typedef struct {
     ADC_HandleTypeDef *adc;
 } mq_sensor_t;
 
 bool mq_sensor_init(mq_sensor_t *sensor, ADC_HandleTypeDef *adc);
-/* Reads all three channels. A single failed conversion invalidates the set. */
+/* Reads all three channels, averaging MQ_SENSOR_AVERAGES conversions each. A
+ * single failed conversion invalidates the whole set. */
 bool mq_sensor_read(mq_sensor_t *sensor, uint16_t values[MQ_SENSOR_CHANNELS]);
 #endif
