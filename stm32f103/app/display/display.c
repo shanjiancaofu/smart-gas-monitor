@@ -14,11 +14,6 @@
 #define SCREEN_SETTINGS 1u
 #define SCREEN_HISTORY  2u
 
-static const char *const state_name[GAS_STATE_COUNT] = {
-    "WARMUP", "NORMAL", "WARNING", "ALARM", "SAFE", "FAULT"
-};
-static const char *const channel_name[GAS_COUNT] = { "MQ4", "MQ7", "MQ8" };
-
 /* Padded to the full row so the previous, longer contents of that row are
  * overwritten rather than left behind it. */
 static void put(display_t *d, unsigned page, bool large, const char *text)
@@ -43,32 +38,18 @@ static void putf(display_t *d, unsigned page, bool large, const char *format, ..
     put(d, page, large, text);
 }
 
-/* "MQ4+MQ7", "MQ4+MQ7+MQ8", or "NONE" for a record whose mask is somehow zero. */
-static void mask_name(uint8_t mask, char *out, size_t size)
-{
-    size_t used = 0u;
-    unsigned i;
-    out[0] = '\0';
-    for (i = 0; i < GAS_COUNT; ++i) {
-        if ((mask & (1u << i)) == 0u) continue;
-        (void)snprintf(out + used, size - used, "%s%s", used ? "+" : "", channel_name[i]);
-        used = strlen(out);
-    }
-    if (used == 0u) (void)snprintf(out, size, "NONE");
-}
-
 static const char *valve_name(bool open) { return open ? "OPEN" : "CLOSED"; }
 
 static void draw_realtime(display_t *d, const gas_monitor_t *m)
 {
     unsigned i;
     for (i = 0; i < GAS_COUNT; ++i)
-        putf(d, (unsigned)(i * 2u), true, "%s %5u/%4u", channel_name[i],
-             m->adc[i], m->config.alarm[i]);
+        putf(d, (unsigned)(i * 2u), true, "%s %5u/%4u",
+             gas_channel_name((gas_channel_t)i), m->adc[i], m->config.alarm[i]);
     /* The valve word is shown next to the state because they disagree on
      * purpose: a latched unit reads ALARM while the valve stays shut, and one
      * that has recovered reads SAFE while the valve is still shut. */
-    putf(d, 6u, true, "%-7s %s", state_name[m->state],
+    putf(d, 6u, true, "%-7s %s", gas_state_name(m->state),
          valve_name(gas_monitor_valve_open(m)));
 }
 
@@ -78,8 +59,8 @@ static void draw_settings(display_t *d, const gas_monitor_t *m, bool storage_ok)
     putf(d, 0u, false, "SETTINGS");
     for (i = 0; i < GAS_COUNT; ++i)
         putf(d, 1u + i, false, "%c %s  TH %5u",
-             m->selected == (uint8_t)(GAS_SEL_MQ4 + i) ? '>' : ' ', channel_name[i],
-             m->config.alarm[i]);
+             m->selected == (uint8_t)(GAS_SEL_MQ4 + i) ? '>' : ' ',
+             gas_channel_name((gas_channel_t)i), m->config.alarm[i]);
     putf(d, 4u, false, "%c PERIOD %5u ms",
          m->selected == GAS_SEL_PERIOD ? '>' : ' ', m->config.sample_period_ms);
     /* The stored copy is what survives a power cut, so a failed write is worth
@@ -109,15 +90,15 @@ static void draw_history(display_t *d, const history_t *h)
         putf(d, 1u, false, "RECORD %u UNREADABLE", d->history_index);
         return;
     }
-    mask_name(entry.alarm_mask, mask, sizeof(mask));
+    gas_alarm_mask_name(entry.alarm_mask, mask, sizeof(mask));
     /* Index and sequence are both shown: the index is where the browse keys
      * are, the sequence says how many alarms have happened in total. */
     putf(d, 0u, false, "HISTORY %u/%u", d->history_index + 1u, count);
     putf(d, 1u, false, "REC %-4u SEQ %u", d->history_index + 1u, entry.seq);
     putf(d, 2u, false, "UP %lu s", (unsigned long)entry.uptime_s);
-    putf(d, 3u, false, "%s %5u", channel_name[GAS_MQ4], entry.adc[GAS_MQ4]);
-    putf(d, 4u, false, "%s %5u", channel_name[GAS_MQ7], entry.adc[GAS_MQ7]);
-    putf(d, 5u, false, "%s %5u", channel_name[GAS_MQ8], entry.adc[GAS_MQ8]);
+    putf(d, 3u, false, "%s %5u", gas_channel_name(GAS_MQ4), entry.adc[GAS_MQ4]);
+    putf(d, 4u, false, "%s %5u", gas_channel_name(GAS_MQ7), entry.adc[GAS_MQ7]);
+    putf(d, 5u, false, "%s %5u", gas_channel_name(GAS_MQ8), entry.adc[GAS_MQ8]);
     putf(d, 6u, false, "ALARM %s", mask);
     putf(d, 7u, false, "KEY2 NEWER KEY3 OLD");
 }

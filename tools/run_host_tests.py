@@ -17,6 +17,10 @@ TESTS = {
                       "stm32f103/app/settings/settings.c"],
     "test_history": ["tests/test_history.c",
                      "stm32f103/app/history/history.c"],
+    "test_protocol": ["tests/test_protocol.c",
+                      "stm32f103/app/gas/gas_monitor.c",
+                      "stm32f103/app/history/history.c",
+                      "stm32f103/app/communication/protocol.c"],
 }
 with tempfile.TemporaryDirectory(prefix="gas-tests-") as folder:
     folder = pathlib.Path(folder)

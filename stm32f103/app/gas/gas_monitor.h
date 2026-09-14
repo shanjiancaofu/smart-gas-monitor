@@ -1,6 +1,7 @@
 #ifndef GAS_MONITOR_H
 #define GAS_MONITOR_H
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /* Channel order matches mq_sensor_read(); app.c asserts the two stay equal. */
@@ -34,6 +35,10 @@ typedef enum {
  * no keypress can reach would only ever be honoured when loaded from EEPROM. */
 #define GAS_PERIOD_MIN_MS 100u
 #define GAS_PERIOD_MAX_MS 5000u
+/* The TIM2 tick the composition root schedules samples on. A period that is not
+ * a whole number of ticks would round to a different one than it names, so such
+ * a value is refused rather than quietly honoured as its rounded neighbour. */
+#define GAS_TICK_MS 10u
 
 #define GAS_WARNING_PERCENT 80u
 /* Recovery below the warning band. Proportional so that a threshold near the
@@ -63,6 +68,13 @@ typedef struct {
     bool sample_valid, sample_attempted, latched, safe_timing, reset_ready, dirty;
 } gas_monitor_t;
 
+/* The display and the serial protocol both name channels and masks, so the
+ * spelling lives here once rather than in each of them. */
+const char *gas_channel_name(gas_channel_t channel);
+/* Short enough for the panel's sixteen-character line. */
+const char *gas_state_name(gas_state_t state);
+/* "MQ4" / "MQ4+MQ7" / "MQ4+MQ7+MQ8", or "NONE" for an empty mask. */
+void gas_alarm_mask_name(uint8_t mask, char *out, size_t size);
 void gas_config_defaults(gas_config_t *config);
 bool gas_config_valid(const gas_config_t *config);
 uint16_t gas_warning_threshold(uint16_t alarm);
@@ -75,6 +87,15 @@ void gas_monitor_sample(gas_monitor_t *m, const uint16_t adc[GAS_COUNT], bool va
 void gas_monitor_tick(gas_monitor_t *m, uint32_t now);
 /* Debounced press edge, keys 1..4. No remote valve-open API. */
 void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now);
+/* Configuration from outside the key path, which is only the serial protocol.
+ * Both refuse a value the settings decoder would refuse, so a remote write can
+ * never produce a configuration that will not survive a power cycle. */
+bool gas_monitor_set_threshold(gas_monitor_t *m, gas_channel_t channel,
+                               uint16_t value, uint32_t now);
+bool gas_monitor_set_period(gas_monitor_t *m, uint16_t ms, uint32_t now);
+/* Closes the valve and latches it. Only KEY4 clears the latch, so this cannot
+ * be undone remotely: there is deliberately no remote open. */
+void gas_monitor_close_valve(gas_monitor_t *m, uint32_t now);
 bool gas_monitor_valve_open(const gas_monitor_t *m);
 bool gas_monitor_save_due(const gas_monitor_t *m, uint32_t now);
 #endif

@@ -1,4 +1,5 @@
 #include "gas/gas_monitor.h"
+#include <stdio.h>
 #include <string.h>
 
 /* Periods the keys step through. A value loaded from EEPROM may sit between
@@ -46,8 +47,62 @@ bool gas_config_valid(const gas_config_t *c)
     for (i = 0; i < GAS_COUNT; ++i)
         if (c->alarm[i] < GAS_THRESHOLD_MIN || c->alarm[i] > GAS_THRESHOLD_MAX) return false;
     return c->sample_period_ms >= GAS_PERIOD_MIN_MS &&
-           c->sample_period_ms <= GAS_PERIOD_MAX_MS;
+           c->sample_period_ms <= GAS_PERIOD_MAX_MS &&
+           c->sample_period_ms % GAS_TICK_MS == 0u;
 }
+
+/* Everything that has to happen when a limit changes, wherever the change came
+ * from: the new value needs saving, and an interval that was being timed
+ * against the old limits must not be allowed to mature under the new ones. */
+static void config_changed(gas_monitor_t *m, uint32_t now)
+{
+    m->dirty = true;
+    m->changed_ms = now;
+    m->safe_timing = false;
+    gas_monitor_tick(m, now);
+}
+
+const char *gas_channel_name(gas_channel_t channel)
+{
+    switch (channel) {
+    case GAS_MQ4: return "MQ4";
+    case GAS_MQ7: return "MQ7";
+    case GAS_MQ8: return "MQ8";
+    default: break;
+    }
+    return "MQ?";
+}
+
+const char *gas_state_name(gas_state_t state)
+{
+    switch (state) {
+    case GAS_WARMUP: return "WARMUP";
+    case GAS_NORMAL: return "NORMAL";
+    case GAS_WARNING: return "WARNING";
+    case GAS_ALARM: return "ALARM";
+    case GAS_SAFE_WAIT: return "SAFE";
+    case GAS_FAULT: return "FAULT";
+    default: break;
+    }
+    return "?";
+}
+
+void gas_alarm_mask_name(uint8_t mask, char *out, size_t size)
+{
+    size_t used = 0u;
+    unsigned i;
+    if (size == 0u) return;
+    out[0] = '\0';
+    for (i = 0; i < GAS_COUNT; ++i) {
+        if ((mask & (1u << i)) == 0u) continue;
+        (void)snprintf(out + used, size - used, "%s%s", used != 0u ? "+" : "",
+                       gas_channel_name((gas_channel_t)i));
+        used = strlen(out);
+        if (used + 1u >= size) break;
+    }
+    if (used == 0u) (void)snprintf(out, size, "NONE");
+}
+
 uint16_t gas_warning_threshold(uint16_t alarm)
 {
     return (uint16_t)((uint32_t)alarm * GAS_WARNING_PERCENT / 100u);
@@ -140,16 +195,41 @@ void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now)
         } else if (m->selected >= GAS_SEL_MQ4 && m->selected <= GAS_SEL_MQ8) {
             changed = threshold_step(&m->config.alarm[m->selected - 1u], key == 2);
         }
-        if (changed) {
-            m->dirty = true; m->changed_ms = now;
-            /* Changed limits cannot inherit an earlier safe interval. */
-            m->safe_timing = false;
-            gas_monitor_tick(m, now);
-        }
+        if (changed) config_changed(m, now);
     } else if (key == 4 && m->reset_ready && m->state == GAS_SAFE_WAIT) {
         m->latched = false;
         gas_monitor_tick(m, now);
     }
+}
+bool gas_monitor_set_threshold(gas_monitor_t *m, gas_channel_t channel,
+                               uint16_t value, uint32_t now)
+{
+    gas_config_t candidate = m->config;
+    if (channel >= GAS_COUNT) return false;
+    candidate.alarm[channel] = value;
+    /* Validating the whole candidate rather than just the new field means the
+     * running configuration can never drift out of the range the decoder
+     * accepts, whichever field a caller thought it was changing. */
+    if (!gas_config_valid(&candidate)) return false;
+    m->config = candidate;
+    config_changed(m, now);
+    return true;
+}
+
+bool gas_monitor_set_period(gas_monitor_t *m, uint16_t ms, uint32_t now)
+{
+    gas_config_t candidate = m->config;
+    candidate.sample_period_ms = ms;
+    if (!gas_config_valid(&candidate)) return false;
+    m->config = candidate;
+    config_changed(m, now);
+    return true;
+}
+
+void gas_monitor_close_valve(gas_monitor_t *m, uint32_t now)
+{
+    m->latched = true;
+    gas_monitor_tick(m, now);
 }
 bool gas_monitor_valve_open(const gas_monitor_t *m)
 {

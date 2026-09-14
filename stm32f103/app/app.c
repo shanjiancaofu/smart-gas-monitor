@@ -26,8 +26,38 @@ static void apply_outputs(const gas_monitor_t *m, uint32_t now)
                        !alarm && m->state != GAS_NORMAL, alarm, now);
 }
 
+/* Sends one line of the pending response to every link, and only when all of
+ * them are free. Pacing it this way is what keeps a fourteen-record dump from
+ * blocking the main loop, which at 9600 baud would otherwise take long enough
+ * to look like a sampler fault. */
+static void pump_replies(app_t *app)
+{
+    const char *line;
+    if (serial_busy(&app->link_usb) || serial_busy(&app->link_radio)) return;
+    line = protocol_next(&app->protocol);
+    if (line == NULL) return;
+    (void)serial_write(&app->link_usb, line);
+    (void)serial_write(&app->link_radio, line);
+    (void)serial_write(&app->link_usb, "\r\n");
+    (void)serial_write(&app->link_radio, "\r\n");
+}
+
+/* Both links carry the same commands, so a reply is only ever queued once and
+ * the two ports see identical traffic. */
+static void poll_links(app_t *app, uint32_t now)
+{
+    char line[SERIAL_LINE_MAX];
+    serial_poll(&app->link_usb);
+    serial_poll(&app->link_radio);
+    if (serial_read_line(&app->link_usb, line, sizeof(line)) ||
+        serial_read_line(&app->link_radio, line, sizeof(line)))
+        protocol_command(&app->protocol, line, now);
+    pump_replies(app);
+}
+
 void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
-              I2C_HandleTypeDef *oled, TIM_HandleTypeDef *tick)
+              I2C_HandleTypeDef *oled, TIM_HandleTypeDef *tick,
+              UART_HandleTypeDef *usb, UART_HandleTypeDef *radio)
 {
     gas_config_t config;
     uint32_t now;
@@ -52,6 +82,9 @@ void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
     now = HAL_GetTick();
     gas_monitor_init(&app->monitor, &config, now);
     display_init(&app->display, oled);
+    protocol_init(&app->protocol, &app->monitor, &app->history);
+    serial_init(&app->link_usb, usb);
+    serial_init(&app->link_radio, radio);
     app->last_state = app->monitor.state;
     apply_outputs(&app->monitor, now);
 }
@@ -103,9 +136,13 @@ void app_run(app_t *app)
         (void)history_append(&app->history, &entry);
         /* The page is showing a record list that just changed underneath it. */
         if (app->monitor.selected == GAS_SEL_HISTORY) app->display.history_index = 0u;
+        /* Told without being asked, so a phone watching the radio link does not
+         * have to poll to find out the valve has shut. */
+        protocol_alarm(&app->protocol);
     }
     app->last_state = app->monitor.state;
     display_update(&app->display, &app->monitor, &app->history, app->storage_ok, now);
+    poll_links(app, HAL_GetTick());
     if (gas_monitor_save_due(&app->monitor, now) &&
         (uint32_t)(now - app->last_save_attempt) >= GAS_SAVE_DELAY_MS) {
         app->last_save_attempt = now;

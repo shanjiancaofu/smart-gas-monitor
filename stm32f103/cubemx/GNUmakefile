@@ -5,8 +5,9 @@ include Makefile
 # basename.
 APP_SOURCES := ../app/app.c ../app/gas/gas_monitor.c ../app/settings/settings.c \
                ../app/display/display.c ../app/history/history.c \
+               ../app/communication/protocol.c \
                ../bsp/alarm_output.c ../bsp/at24c02.c ../bsp/key.c \
-               ../bsp/mq_sensor.c ../bsp/ssd1306.c
+               ../bsp/mq_sensor.c ../bsp/serial.c ../bsp/ssd1306.c
 APP_OBJECTS := $(addprefix $(BUILD_DIR)/,$(notdir $(APP_SOURCES:.c=.o)))
 CFLAGS += -I../app -I../bsp
 vpath %.c $(sort $(dir $(APP_SOURCES)))
