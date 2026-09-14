@@ -22,8 +22,8 @@ static bool write_mem(void *ctx, uint16_t addr, const uint8_t *data, size_t size
     return true;
 }
 
-/* Collects a whole response into one string with the lines separated by '|',
- * so a test can state the entire reply in one comparison. */
+/* 把整段应答收进一个字符串，行间用 '|' 分隔，于是一条用例可以用一次比较
+ * 说清整段回复。 */
 static void reply(protocol_t *p, char *out, size_t size)
 {
     const char *line;
@@ -76,17 +76,15 @@ static void test_queries(void)
     command(&p, "CONFIG?", 63100, out, sizeof(out));
     assert(strcmp(out, "TH MQ4=2400 MQ7=2000 MQ8=2400 PERIOD=100") == 0);
 
-    /* An empty log answers with the header alone rather than nothing, so an
-     * empty answer cannot be mistaken for a link that is down. */
+    /* 空记录也要回一行表头而不是什么都不回，否则空应答会被当成链路断了。 */
     command(&p, "HISTORY?", 63100, out, sizeof(out));
     assert(strcmp(out, "HISTORY 0/14") == 0);
 
-    /* Everything is case insensitive: someone typing at a terminal should not
-     * have to know which letters were capitals in the manual. */
+    /* 全部大小写不敏感：在终端上敲命令的人不该需要知道手册里哪个字母是大写。 */
     command(&p, "status?", 63100, out, sizeof(out));
     assert(strncmp(out, "STATE=NORMAL", 12) == 0);
 
-    /* A blank line is line noise, not a command. */
+    /* 空行是线路噪声，不是命令。 */
     command(&p, "   ", 63100, out, sizeof(out));
     assert(strcmp(out, "") == 0);
     command(&p, "", 63100, out, sizeof(out));
@@ -110,8 +108,8 @@ static void test_set(void)
     command(&p, "SET MQ4 2600", 63100, out, sizeof(out));
     assert(strcmp(out, "OK MQ4=2600") == 0);
     assert(m.config.alarm[GAS_MQ4] == 2600u);
-    /* A remote change must be as durable as a keypress: the same path marks it
-     * for saving, or the value would be lost at the next power cycle. */
+    /* 远程改动必须和按键一样持久：走同一条记账路径置位保存标志，否则这个值
+     * 下次掉电就没了。 */
     assert(m.dirty);
 
     command(&p, "set mq7 900", 63100, out, sizeof(out));
@@ -120,21 +118,19 @@ static void test_set(void)
     command(&p, "SET PERIOD 1000", 63100, out, sizeof(out));
     assert(strcmp(out, "OK PERIOD=1000") == 0 && m.config.sample_period_ms == 1000u);
 
-    /* Anything the settings decoder would refuse has to be refused here too,
-     * or a remote write could store a configuration that fails its own CRC
-     * check on the next boot. */
+    /* 配置解码器会拒绝的值，这里也必须拒绝，否则远程写入可以存下一份开机的
+     * 时候自己过不了 CRC 的配置。 */
     command(&p, "SET MQ4 100", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.alarm[GAS_MQ4] == 2600u);
     command(&p, "SET MQ4 9999", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0);
-    /* 255 is not a whole number of timer ticks, so it would round to a period
-     * other than the one it names. */
+    /* 255 不是整数个定时节拍，会被凑成另一个周期，而不是它自称的那个。 */
     command(&p, "SET PERIOD 255", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.sample_period_ms == 1000u);
     command(&p, "SET PERIOD 50", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.sample_period_ms == 1000u);
-    /* Any whole number of ticks in range is accepted, including values no
-     * keypress can step to; the keys are a shortcut, not the whole range. */
+    /* 范围内的任意整数个节拍都接受，包括按键步进选不到的值：按键是快捷方式，
+     * 不是全部合法取值。 */
     command(&p, "SET PERIOD 250", 63100, out, sizeof(out));
     assert(strcmp(out, "OK PERIOD=250") == 0 && m.config.sample_period_ms == 250u);
 
@@ -170,9 +166,8 @@ static void test_valve(void)
     assert(m.config.lockout && m.dirty);
     m.dirty = false;
 
-    /* There is deliberately no remote open. The whole point of latching the
-     * valve is that clearing it takes someone at the panel, so the link must
-     * not be able to undo a close. */
+    /* 这里故意不做远程开阀。锁存阀门的意义就在于解除它必须有人在面板前，所以
+     * 链路不能有能力撤销一次关阀。 */
     command(&p, "VALVE OPEN", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR ONLY CLOSE") == 0);
     assert(!gas_monitor_valve_open(&m));
@@ -181,8 +176,8 @@ static void test_valve(void)
     assert(!gas_monitor_valve_open(&m));
     assert(!m.dirty);
 
-    /* Reopening after a remote close follows the same rule as after an alarm:
-     * the concentration has to be low and KEY4 has to be pressed. */
+    /* 远程关阀之后重新开阀，和报警之后是同一条规则：浓度要够低，且必须按下
+     * KEY4。 */
     for (t = 63200; t <= 66300; t += 100) sample(&m, t, 500, 500, 500);
     assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
     command(&p, "VALVE OPEN", 66300, out, sizeof(out));
@@ -215,8 +210,7 @@ static void test_history(void)
     }
     protocol_init(&p, &m, &h);
     command(&p, "HISTORY?", 63100, out, sizeof(out));
-    /* Newest first, and the sequence number is carried so the log can be read
-     * across a power cycle without losing count of how many alarms there were. */
+    /* 最新的在前，并且带上序号，这样跨掉电读记录时不会丢掉报警总数。 */
     assert(strcmp(out,
         "HISTORY 3/14|"
         "1 SEQ=3 MQ4=2602 MQ7=300 MQ8=200 ALARM=MQ8 UP=62|"
@@ -246,12 +240,11 @@ static void test_alarm_notice(void)
     reply(&p, out, sizeof(out));
     assert(strcmp(out, "ALARM MQ4 MQ4=2410 MQ7=500 MQ8=500") == 0);
     assert(!protocol_busy(&p));
-    /* The notice is one line and complete; asking again yields nothing. */
+    /* 通知只有一行且一次给完；再问不会再有。 */
     assert(protocol_next(&p) == NULL);
 }
 
-/* A line longer than the protocol emits must not overflow anything, and must
- * still leave the protocol usable afterwards. */
+/* 超过协议行长上限的输入不能撑爆任何东西，而且之后协议仍然可用。 */
 static void test_long_line(void)
 {
     gas_monitor_t m;

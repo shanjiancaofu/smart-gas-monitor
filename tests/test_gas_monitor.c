@@ -7,7 +7,7 @@ static void sample(gas_monitor_t *m, uint32_t now, uint16_t a, uint16_t b, uint1
     uint16_t values[GAS_COUNT] = {a, b, c};
     gas_monitor_sample(m, values, true, now);
 }
-/* Runs a clean warm-up; the valve must already be open when this returns. */
+/* 跑完一次干净的预热；本函数返回时阀门应当已经打开。 */
 static void run_to_normal(gas_monitor_t *m, uint32_t start)
 {
     uint32_t t;
@@ -61,7 +61,7 @@ static void test_states(void)
     sample(&m, 64000, 500, 500, 500);
     assert(m.state == GAS_SAFE_WAIT && !gas_monitor_valve_open(&m));
     assert(!m.reset_ready);
-    /* Wrap during warmup and safety timing. */
+    /* 预热计时和安全计时都要跨过回绕点。 */
     run_to_normal(&m, UINT32_MAX - 61000u);
 }
 static void test_power_up_opens(void)
@@ -76,7 +76,7 @@ static void test_power_up_opens(void)
     }
     sample(&m, GAS_WARMUP_MS, 500, 500, 500);
     assert(m.state == GAS_NORMAL && gas_monitor_valve_open(&m));
-    /* The safety hold releases a latch; it is not a condition for opening. */
+    /* 安全保持窗口是用来解除锁存的，不是开阀的前置条件。 */
     assert(!m.reset_ready);
 }
 static void test_no_fault_before_first_sample(void)
@@ -85,7 +85,7 @@ static void test_no_fault_before_first_sample(void)
     gas_monitor_init(&m, NULL, 1000);
     gas_monitor_tick(&m, 1000);
     assert(m.state == GAS_WARMUP && !m.latched);
-    /* Once a sample has been seen, losing it is a fault again. */
+    /* 一旦成功采过样，再丢掉采样就重新算故障。 */
     sample(&m, 1100, 500, 500, 500);
     gas_monitor_tick(&m, 1100 + gas_sample_timeout_ms(&m));
     assert(m.state == GAS_FAULT && m.latched);
@@ -94,13 +94,13 @@ static void test_failed_attempt_is_a_fault(void)
 {
     gas_monitor_t m;
     uint32_t t;
-    /* An ADC that is already broken at power-up must report a fault, not sit in
-     * warm-up forever: "no reading yet" and "a reading failed" differ. */
+    /* 开机时就坏掉的 ADC 必须报故障，而不是永远停在预热：「还没有读数」和
+     * 「读到了一次失败的读数」是两回事。 */
     gas_monitor_init(&m, NULL, 0);
     gas_monitor_sample(&m, NULL, false, 100);
     assert(m.state == GAS_FAULT && m.latched);
     assert(!gas_monitor_valve_open(&m));
-    /* It recovers by the same rule as any other latch: clean air, then KEY4. */
+    /* 它和其它锁存走同一条恢复规则：先回到洁净空气，再按 KEY4。 */
     for (t = 200; t <= 100000; t += 100) sample(&m, t, 500, 500, 500);
     assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
     assert(!gas_monitor_valve_open(&m));
@@ -133,8 +133,8 @@ static void test_low_threshold_recovers(void)
     for (i = 0; i < 100; ++i) gas_monitor_key(&m, 3, 63000);
     assert(m.config.alarm[GAS_MQ4] == GAS_THRESHOLD_MIN);
     assert(m.state == GAS_ALARM && !gas_monitor_valve_open(&m));
-    /* A proportional safe band keeps clean air reachable even at the bottom of
-     * the threshold range. With an absolute band this never recovers. */
+    /* 安全带按比例取，阈值调到量程最底端时洁净空气仍然够得着；若用固定值，
+     * 这种情况永远恢复不了。 */
     for (t = 63100; t <= 66100; t += 100) sample(&m, t, 100, 100, 100);
     assert(m.reset_ready);
     assert(m.state == GAS_SAFE_WAIT && !gas_monitor_valve_open(&m));
@@ -178,7 +178,7 @@ static void test_sample_period(void)
     gas_monitor_key(&m, 2, 63000);
     assert(m.config.sample_period_ms == 200 && m.dirty);
     assert(gas_sample_timeout_ms(&m) == 600);
-    /* The stall window follows the configured period, not a fixed constant. */
+    /* 停顿判定的窗口跟着配置的采样周期走，不是一个固定常数。 */
     for (t = 63100; t <= 66900; t += 200) sample(&m, t, 500, 500, 500);
     assert(m.state == GAS_NORMAL);
     gas_monitor_tick(&m, 66900 + 599u);

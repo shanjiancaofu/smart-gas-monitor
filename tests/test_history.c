@@ -38,7 +38,7 @@ static history_entry_t make(uint16_t mq4, uint32_t uptime_s, uint8_t mask)
     return e;
 }
 
-/* The log must not reach outside the half of the EEPROM it was given. */
+/* 记录区不得越出分配给它的那半个 EEPROM。 */
 static void test_region(void)
 {
     assert(HISTORY_BASE + HISTORY_SLOTS * HISTORY_SLOT_SIZE == 256u);
@@ -53,11 +53,11 @@ static void test_empty(void)
     history_entry_t e;
     memset(&f, 0xff, sizeof(f));
     f.budget = -1;
-    /* A blank EEPROM is an empty log, not an error worth failing over. */
+    /* 空白 EEPROM 就是一条空记录，不是值得报错的异常。 */
     assert(!history_init(&h, &io));
     assert(history_count(&h) == 0u);
     assert(!history_get(&h, 0u, &e));
-    /* No backend at all is the same answer. */
+    /* 完全没有后端，答案也一样。 */
     assert(!history_init(&h, NULL));
     assert(history_count(&h) == 0u);
 }
@@ -77,14 +77,13 @@ static void test_order_and_reboot(void)
         assert(history_append(&h, &e));
         assert(e.seq == i + 1u);
     }
-    /* Index 0 is the newest, so browsing starts at the most recent alarm. */
+    /* 下标 0 是最新的一条，所以翻阅是从最近一次报警开始的。 */
     assert(history_count(&h) == 3u);
     assert(history_get(&h, 0u, &e) && e.seq == 3u && e.adc[GAS_MQ4] == 2602u);
     assert(history_get(&h, 1u, &e) && e.seq == 2u);
     assert(history_get(&h, 2u, &e) && e.seq == 1u && e.uptime_s == 0u);
     assert(!history_get(&h, 3u, &e));
-    /* The sequence number survives a power cycle and keeps counting, so the
-     * count of alarms raised over the life of the unit is not reset. */
+    /* 序号跨掉电保留并继续递增，所以这台设备一生中报过多少次警不会被清零。 */
     assert(history_init(&h, &io));
     assert(history_count(&h) == 3u);
     e = make(2700u, 500u, 1u);
@@ -104,7 +103,7 @@ static void test_wraparound(void)
     memset(&f, 0xff, sizeof(f));
     f.budget = -1;
     assert(!history_init(&h, &io));
-    /* Two full laps plus one, so the oldest record is seq 15 - 14 + 1. */
+    /* 整整两圈再多一条，所以现存最旧的一条是 seq 15 - 14 + 1。 */
     for (i = 0; i < HISTORY_SLOTS * 2u + 1u; ++i) {
         e = make((uint16_t)i, i, 1u);
         assert(history_append(&h, &e));
@@ -113,8 +112,8 @@ static void test_wraparound(void)
     assert(history_get(&h, 0u, &e) && e.seq == 29u && e.adc[GAS_MQ4] == 28u);
     assert(history_get(&h, HISTORY_SLOTS - 1u, &e) && e.seq == 16u);
     assert(!history_get(&h, HISTORY_SLOTS, &e));
-    /* Reloading must agree with the running state, including which slot is
-     * next, or the first record after a reboot lands on top of a live one. */
+    /* 重新装载的结果必须和运行中的状态一致，包括下一个该用哪个槽，否则重启
+     * 后的第一条记录会盖掉一条还有效的记录。 */
     assert(history_init(&h, &io));
     assert(history_count(&h) == HISTORY_SLOTS);
     assert(history_get(&h, 0u, &e) && e.seq == 29u);
@@ -139,8 +138,7 @@ static void test_torn_and_corrupt(void)
     e = make(2700u, 120u, 2u);
     assert(history_append(&h, &e));
     baseline = f;
-    /* Cutting power part way through a record leaves the previous contents
-     * readable and, crucially, does not consume a sequence number. */
+    /* 写一条记录写到一半掉电，原内容仍可读；更要紧的是不会白吃一个序号。 */
     f.budget = 5;
     e = make(2800u, 180u, 3u);
     assert(!history_append(&h, &e));
@@ -150,15 +148,14 @@ static void test_torn_and_corrupt(void)
     assert(history_append(&h, &e));
     assert(e.seq == 3u);
     assert(history_get(&h, 0u, &e) && e.seq == 3u);
-    /* A record damaged in storage is dropped on the next boot rather than
-     * reported with whatever values survived. Slot 0 holds seq 1, so seq 2 is
-     * the one left standing. */
+    /* 存储中损坏的记录会在下次开机时被丢弃，而不是把残存下来的字段照报出去。
+     * 槽 0 放的是 seq 1，所以剩下的是 seq 2。 */
     f = baseline;
     f.data[HISTORY_BASE + 7u] ^= 0x01;
     assert(history_init(&h, &io));
     assert(history_count(&h) == 1u);
     assert(history_get(&h, 0u, &e) && e.seq == 2u);
-    /* A record whose sequence field alone was erased reads as absent too. */
+    /* 只有序号字段被擦掉的记录，同样读作不存在。 */
     f = baseline;
     f.data[HISTORY_BASE] = 0xff;
     f.data[HISTORY_BASE + 1u] = 0xff;
