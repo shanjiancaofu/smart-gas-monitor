@@ -49,6 +49,7 @@ stm32f103/
 - [硬件设计与接线说明](docs/智能燃气监测与自动防护系统_硬件设计与接线说明.docx)
 - [固件分层、配置与构建](docs/firmware.md)
 - [验证结果与待验证项](docs/verification.md)
+- [变更记录](docs/changelog.md)
 
 ## 代码组织
 
