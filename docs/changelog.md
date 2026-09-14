@@ -4,6 +4,26 @@
 
 日期均为 2026-09-14。
 
+## `679b859` — 采样故障判定与采样周期下限修复
+
+### 修复
+
+- 第一次采样尝试就失败时不再停留在预热。`sample_seen` 只在采样成功时置位，所以开机起 ADC 就一直失败的系统会永远停在 WARMUP，既不开阀也不报故障——阀门是关的，不构成危险开阀，但故障语义不对。改为 `sample_attempted`：任何一次转换尝试都置位，于是“还没采过”是预热，“采过但失败”是 FAULT 并锁存。
+- `GAS_PERIOD_MIN_MS` 由 50 改为 100，与按键可选列表首项一致。原先 50 能被 `gas_config_valid()` 接受，但按键选不到，只有从 EEPROM 载入记录才会生效。
+- `alarm_output.h` 里“可在 GPIO 配置前安全调用”的说法不成立：`alarm_output_force_safe()` 写的是 ODR，引脚还是输入时驱动不了。改为明确说明复位到 `MX_GPIO_Init()` 之间靠硬件下拉兜底。
+
+### 新增
+
+- `NMI_Handler` 调用 `alarm_output_force_safe()`，与另外四个异常处理入口保持一致。
+
+### 测试
+
+- 新增 `test_failed_attempt_is_a_fault`，覆盖“开机第一次采样就失败”，并验证它走正常的 KEY4 恢复路径。该用例在旧语义下确认失败。
+
+### 文档
+
+- README 更正 `app/` 的依赖描述：`app/gas` 与 `app/settings` 才是 HAL-independent 的部分，`app.c` 作为组合层持有 BSP 对象并调用 `HAL_GetTick()`，原文“整个 `app/` 只依赖标准 C”不准确。
+
 ## `1d8ffb8` — 目录重构与状态机修复
 
 ### 修复

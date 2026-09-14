@@ -36,13 +36,13 @@ stm32f103/
 │   ├── key.*               # PB12～PB15 扫描与消抖
 │   ├── alarm_output.*      # 继电器、LED、蜂鸣器
 │   └── at24c02.*           # I2C2 分页读写
-└── app/                    # 只依赖标准 C，可在主机上测试
-    ├── app.*               # 模块装配与主循环调度
+└── app/
+    ├── app.*               # 组合层：装配各模块与主循环调度，依赖 BSP/HAL
     ├── gas/                # 阈值、监测状态机、报警锁存和人工恢复
     └── settings/           # 参数序列化、CRC、双副本保存
 ```
 
-`cubemx/Core/`、`cubemx/Drivers/` 由 CubeMX 生成；BSP 访问 HAL，app 不依赖 HAL，`app.c` 是唯一把两者装配起来的地方。根目录 `tests/` 保存主机 C 测试。
+`cubemx/Core/`、`cubemx/Drivers/` 由 CubeMX 生成。BSP 访问 HAL；`app/gas` 与 `app/settings` 只依赖标准 C，可在主机上测试；`app.c` 是唯一把两者装配起来的地方，它持有 BSP 对象并调用 `HAL_GetTick()`，因此自身依赖 HAL。根目录 `tests/` 保存主机 C 测试。
 
 ## 项目文档
 
