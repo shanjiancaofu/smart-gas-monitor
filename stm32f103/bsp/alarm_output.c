@@ -14,6 +14,14 @@ void alarm_output_force_safe(void)
 {
     HAL_GPIO_WritePin(RELAY_GPIO_Port, RELAY_Pin, opposite(RELAY_OPEN_LEVEL));
     HAL_GPIO_WritePin(VALVE_LED_GPIO_Port, VALVE_LED_Pin, GPIO_PIN_RESET);
+    /* 蜂鸣器也要收进来。它被几个故障入口调用，而那些路径之后
+     * alarm_output_apply() 不会再跑，少了这一句，引脚就停在最后一次写入的电平
+     * 上——HardFault 若正落在响铃窗口里，蜂鸣器会一直响到复位为止，而「引脚停在
+     * 某个电平上」正是这个函数要消灭的东西。
+     *
+     * 这里只驱动输出，不动 buzzer_alarm / buzzer_start_tick：这两个是
+     * alarm_output_init() 的职责，而这个函数要在故障处理入口里保持最小。 */
+    HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, opposite(BUZZER_ON_LEVEL));
 }
 
 void alarm_output_init(void)
@@ -21,7 +29,6 @@ void alarm_output_init(void)
     buzzer_alarm = false;
     buzzer_start_tick = 0;
     alarm_output_force_safe();
-    HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, opposite(BUZZER_ON_LEVEL));
     HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_RESET);
