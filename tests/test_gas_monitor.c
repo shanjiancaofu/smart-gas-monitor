@@ -83,6 +83,23 @@ static void test_no_fault_before_first_sample(void)
     gas_monitor_tick(&m, 1100 + gas_sample_timeout_ms(&m));
     assert(m.state == GAS_FAULT && m.latched);
 }
+static void test_failed_attempt_is_a_fault(void)
+{
+    gas_monitor_t m;
+    uint32_t t;
+    /* An ADC that is already broken at power-up must report a fault, not sit in
+     * warm-up forever: "no reading yet" and "a reading failed" differ. */
+    gas_monitor_init(&m, NULL, 0);
+    gas_monitor_sample(&m, NULL, false, 100);
+    assert(m.state == GAS_FAULT && m.latched);
+    assert(!gas_monitor_valve_open(&m));
+    /* It recovers by the same rule as any other latch: clean air, then KEY4. */
+    for (t = 200; t <= 100000; t += 100) sample(&m, t, 500, 500, 500);
+    assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
+    assert(!gas_monitor_valve_open(&m));
+    gas_monitor_key(&m, 4, 100000);
+    assert(gas_monitor_valve_open(&m));
+}
 static void test_low_threshold_recovers(void)
 {
     gas_monitor_t m;
@@ -151,6 +168,7 @@ int main(void)
     test_states();
     test_power_up_opens();
     test_no_fault_before_first_sample();
+    test_failed_attempt_is_a_fault();
     test_low_threshold_recovers();
     test_keys();
     test_sample_period();

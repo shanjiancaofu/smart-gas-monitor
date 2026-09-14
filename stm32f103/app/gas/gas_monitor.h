@@ -26,7 +26,9 @@ typedef enum {
 #define GAS_THRESHOLD_MIN 200u
 #define GAS_THRESHOLD_MAX 4000u
 #define GAS_THRESHOLD_STEP 50u
-#define GAS_PERIOD_MIN_MS 50u
+/* Matches the lowest entry in the key-selectable period list: a minimum that
+ * no keypress can reach would only ever be honoured when loaded from EEPROM. */
+#define GAS_PERIOD_MIN_MS 100u
 #define GAS_PERIOD_MAX_MS 5000u
 
 #define GAS_WARNING_PERCENT 80u
@@ -54,7 +56,7 @@ typedef struct {
     uint32_t started_ms, sample_ms, safe_since_ms, changed_ms;
     uint32_t alarm_count;
     uint8_t alarm_mask, selected;
-    bool sample_valid, sample_seen, latched, safe_timing, reset_ready, dirty;
+    bool sample_valid, sample_attempted, latched, safe_timing, reset_ready, dirty;
 } gas_monitor_t;
 
 void gas_config_defaults(gas_config_t *config);

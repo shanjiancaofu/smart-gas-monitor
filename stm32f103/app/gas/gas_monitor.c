@@ -79,9 +79,10 @@ void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
     m->reset_ready = false;
     if (!m->sample_valid || (uint32_t)(now - m->sample_ms) >= gas_sample_timeout_ms(m)) {
         /* Before the first conversion the sampler has not failed, it has not
-         * started: that is still warm-up, and it must not latch the valve. */
-        m->state = m->sample_seen ? GAS_FAULT : GAS_WARMUP;
-        if (m->sample_seen) m->latched = true;
+         * started: that is still warm-up, and it must not latch the valve. Once
+         * an attempt has been made, a missing reading is a sampler fault. */
+        m->state = m->sample_attempted ? GAS_FAULT : GAS_WARMUP;
+        if (m->sample_attempted) m->latched = true;
         m->safe_timing = false;
         return;
     }
@@ -111,8 +112,11 @@ void gas_monitor_sample(gas_monitor_t *m, const uint16_t adc[GAS_COUNT], bool va
 {
     unsigned i;
     /* A fresh sample must not conceal an earlier scheduler/sample outage. */
-    if (m->sample_seen && (uint32_t)(now - m->sample_ms) >= gas_sample_timeout_ms(m))
+    if (m->sample_attempted && (uint32_t)(now - m->sample_ms) >= gas_sample_timeout_ms(m))
         gas_monitor_tick(m, now);
+    /* Every conversion attempt counts, successful or not: a sampler that keeps
+     * returning nothing is a fault, not an endless warm-up. */
+    m->sample_attempted = true;
     m->sample_valid = valid;
     if (valid) {
         for (i = 0; i < GAS_COUNT; ++i) {
@@ -120,7 +124,6 @@ void gas_monitor_sample(gas_monitor_t *m, const uint16_t adc[GAS_COUNT], bool va
             m->adc[i] = adc[i];
         }
         m->sample_ms = now;
-        m->sample_seen = true;
     }
     gas_monitor_tick(m, now);
 }
