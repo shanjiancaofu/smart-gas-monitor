@@ -62,6 +62,8 @@ USART1（115200，USB-TTL）和 USART2（9600，HC-05）走同一套文本协议
 - [固件分层、配置与构建](docs/firmware.md)
 - [验证结果与待验证项](docs/verification.md)
 - [变更记录](docs/changelog.md)
+- [硬件接口表](docs/hardware_interface.md)
+- [串口协议](docs/uart_protocol.md)
 
 ## 代码组织
 
