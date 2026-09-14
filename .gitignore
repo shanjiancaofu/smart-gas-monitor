@@ -53,3 +53,28 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# STM32 build output
+Debug/
+Release/
+build/
+Objects/
+Listings/
+*.axf
+*.bin
+*.lst
+*.crf
+*.htm
+*.uvguix.*
+
+# Local editor and OS files
+.vs/
+.DS_Store
+Thumbs.db
+
+# Office temporary lock files
+~$*
+
+# Python validation tools
+__pycache__/
+*.pyc
