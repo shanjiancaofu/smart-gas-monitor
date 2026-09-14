@@ -55,6 +55,7 @@ static void draw_realtime(display_t *d, const gas_monitor_t *m)
 
 static void draw_settings(display_t *d, const gas_monitor_t *m, bool storage_ok)
 {
+    char buzz[8];
     unsigned i;
     putf(d, 0u, false, "SETTINGS");
     for (i = 0; i < GAS_COUNT; ++i)
@@ -63,10 +64,14 @@ static void draw_settings(display_t *d, const gas_monitor_t *m, bool storage_ok)
              gas_channel_name((gas_channel_t)i), m->config.alarm[i]);
     putf(d, 4u, false, "%c PERIOD %5u ms",
          m->selected == GAS_SEL_PERIOD ? '>' : ' ', m->config.sample_period_ms);
-    /* 掉电后能留下的是存储的那一份，所以即使运行中的配置不受影响，
-     * 写入失败也值得显示出来。 */
-    putf(d, 5u, false, "STORE %s", storage_ok ? "OK" : "FAIL");
-    putf(d, 6u, false, "ALARMS %lu", (unsigned long)m->alarm_count);
+    gas_buzzer_name(m->config.buzzer, buzz, sizeof(buzz));
+    putf(d, 5u, false, "%c BUZZ %s",
+         m->selected == GAS_SEL_BUZZER ? '>' : ' ', buzz);
+    /* STORE 与 ALARMS 并成一行，把腾出来的那一行给蜂鸣器——八行是面板的物理
+     * 上限，没有页内翻页可用。掉电后能留下的是存储的那一份，所以即使运行中
+     * 的配置不受影响，写入失败也值得显示出来。 */
+    putf(d, 6u, false, "STORE %s  ALARMS %lu", storage_ok ? "OK" : "FAIL",
+         (unsigned long)m->alarm_count);
     putf(d, 7u, false, "KEY1 NEXT KEY2/3 ADJ");
 }
 

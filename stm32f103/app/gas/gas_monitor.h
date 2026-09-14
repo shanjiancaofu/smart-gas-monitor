@@ -20,6 +20,7 @@ typedef enum {
     GAS_SEL_MQ7,
     GAS_SEL_MQ8,
     GAS_SEL_PERIOD,
+    GAS_SEL_BUZZER,
     /* 只供浏览的界面。这里没有可调项，KEY2/KEY3 留给调用者解释为翻阅历史。 */
     GAS_SEL_HISTORY,
     GAS_SEL_COUNT
@@ -48,9 +49,25 @@ typedef enum {
 #define GAS_SAVE_DELAY_MS 2000u
 #define GAS_SAMPLE_TIMEOUT_PERIODS 3u
 
+/* 报警蜂鸣器响多久。三个取值排在同一个数轴上——「不响」最短，「一直响」最长
+ * ——所以按键就是加减两端夹取，不需要单独一套档位表。 */
+#define GAS_BUZZER_OFF 0u
+#define GAS_BUZZER_MAX_S 60u
+#define GAS_BUZZER_ALWAYS (GAS_BUZZER_MAX_S + 1u)
+/* gas_buzzer_duration_ms() 在「一直响」时返回它。alarm_output.h 的
+ * BUZZER_FOREVER 是同一个值，app.c 里的断言保证两者不会走散。 */
+#define GAS_BUZZER_FOREVER_MS 0xffffu
+/* 最长的秒数换算成毫秒之后必须仍然小于哨兵值，否则「70 秒」这种值会撞上
+ * 「一直响」的编码。日后把上限调大时，这里先编译不过，而不是让两个含义悄悄
+ * 重合。 */
+_Static_assert(GAS_BUZZER_MAX_S * 1000u < GAS_BUZZER_FOREVER_MS,
+               "the longest buzzer duration must stay below the forever sentinel");
+
 typedef struct {
     uint16_t alarm[GAS_COUNT];
     uint16_t sample_period_ms;
+    /* GAS_BUZZER_OFF / 1..GAS_BUZZER_MAX_S 秒 / GAS_BUZZER_ALWAYS。 */
+    uint8_t buzzer;
     bool lockout;
 } gas_config_t;
 
@@ -74,8 +91,14 @@ const char *gas_channel_name(gas_channel_t channel);
 const char *gas_state_name(gas_state_t state);
 /* "MQ4" / "MQ4+MQ7" / "MQ4+MQ7+MQ8"，空掩码时为 "NONE"。 */
 void gas_alarm_mask_name(uint8_t mask, char *out, size_t size);
+/* "OFF" / "5S" / "ALWAYS"，同样是面板和串口共用一份。 */
+void gas_buzzer_name(uint8_t value, char *out, size_t size);
 void gas_config_defaults(gas_config_t *config);
 bool gas_config_valid(const gas_config_t *config);
+/* 蜂鸣器该响多久，换算成毫秒：不响→0，秒数→秒数×1000，一直响→
+ * GAS_BUZZER_FOREVER_MS。放在这里而不是 app.c，是为了让换算落在主机测试
+ * 能覆盖到的模块里——BSP 和组合层都不在测试里。 */
+uint16_t gas_buzzer_duration_ms(const gas_config_t *config);
 uint16_t gas_warning_threshold(uint16_t alarm);
 uint16_t gas_safe_threshold(uint16_t alarm);
 /* 采样器落后自己的周期到这个程度，就算停摆。 */
@@ -91,6 +114,9 @@ void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now);
 bool gas_monitor_set_threshold(gas_monitor_t *m, gas_channel_t channel,
                                uint16_t value, uint32_t now);
 bool gas_monitor_set_period(gas_monitor_t *m, uint16_t ms, uint32_t now);
+/* 取 uint16 而不是字段本身的 uint8：超范围的值必须在收窄之前就被拒绝，否则
+ * 256 会截断成 0，静默变成「不响」。 */
+bool gas_monitor_set_buzzer(gas_monitor_t *m, uint16_t value, uint32_t now);
 /* 关闭阀门并锁存。只有 KEY4 能清除锁存，所以这个动作无法远程撤销：故意
  * 不提供远程开阀。 */
 void gas_monitor_close_valve(gas_monitor_t *m, uint32_t now);

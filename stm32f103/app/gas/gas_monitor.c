@@ -33,6 +33,19 @@ static bool period_step(uint16_t *value, bool up)
     return *value != old;
 }
 
+/* 蜂鸣器时长的取值排在同一个数轴上，所以是简单加减、两端夹取，不做环绕：
+ * 「加」永远意味着响得更久，撞到「一直响」就停在那一档。 */
+static bool buzzer_step(uint8_t *value, bool up)
+{
+    uint8_t old = *value;
+    if (up) {
+        if (*value < GAS_BUZZER_ALWAYS) *value = (uint8_t)(*value + 1u);
+    } else {
+        if (*value > GAS_BUZZER_OFF) *value = (uint8_t)(*value - 1u);
+    }
+    return *value != old;
+}
+
 static void set_lockout(gas_monitor_t *m, uint32_t now)
 {
     if (!m->config.lockout) {
@@ -60,6 +73,8 @@ void gas_config_defaults(gas_config_t *c)
     c->alarm[GAS_MQ7] = 2000;
     c->alarm[GAS_MQ8] = 2400;
     c->sample_period_ms = 100;
+    /* 与改动前那个固定的 5 秒一致，升级到 v5 不会让蜂鸣器行为跟着变。 */
+    c->buzzer = 5u;
     c->lockout = false;
 }
 bool gas_config_valid(const gas_config_t *c)
@@ -67,17 +82,28 @@ bool gas_config_valid(const gas_config_t *c)
     unsigned i;
     for (i = 0; i < GAS_COUNT; ++i)
         if (c->alarm[i] < GAS_THRESHOLD_MIN || c->alarm[i] > GAS_THRESHOLD_MAX) return false;
-    return c->sample_period_ms >= GAS_PERIOD_MIN_MS &&
+    /* 蜂鸣器只判上界：0 是合法取值（不响），而下界由无符号类型本身兜住。 */
+    return c->buzzer <= GAS_BUZZER_ALWAYS &&
+           c->sample_period_ms >= GAS_PERIOD_MIN_MS &&
            c->sample_period_ms <= GAS_PERIOD_MAX_MS &&
            c->sample_period_ms % GAS_TICK_MS == 0u;
 }
 
-/* 限值变化时该做的事都在这里，不管变化来自哪里：新值需要保存，而正在按旧
- * 限值计时的那个区间，不能让它换上新限值后继续计时直到成立。 */
-static void config_changed(gas_monitor_t *m, uint32_t now)
+/* 改动需要落盘，先记账。延时保存和失败后的重试都看这两个字段。 */
+static void mark_dirty(gas_monitor_t *m, uint32_t now)
 {
     m->dirty = true;
     m->changed_ms = now;
+}
+
+/* 影响限值判断的改动走这里，不管变化来自哪里：正在按旧限值计时的那个区间，
+ * 不能让它换上新限值后继续计时直到成立。
+ *
+ * 蜂鸣器时长不走这里，只走 mark_dirty：它不参与「低于危险阈值多久算恢复」的
+ * 判断，重启那个窗口只会让 SAFE_WAIT 里的 KEY4 白等三秒。 */
+static void config_changed(gas_monitor_t *m, uint32_t now)
+{
+    mark_dirty(m, now);
     m->safe_timing = false;
     gas_monitor_tick(m, now);
 }
@@ -121,6 +147,23 @@ void gas_alarm_mask_name(uint8_t mask, char *out, size_t size)
         if (used + 1u >= size) break;
     }
     if (used == 0u) (void)snprintf(out, size, "NONE");
+}
+
+void gas_buzzer_name(uint8_t value, char *out, size_t size)
+{
+    if (size == 0u) return;
+    /* 判 >= 而不是 == ：万一有个超出范围的值得了进来，它读作最长的那个档位，
+     * 而不是显示成「62S」这种不存在的设置。 */
+    if (value == GAS_BUZZER_OFF) (void)snprintf(out, size, "OFF");
+    else if (value >= GAS_BUZZER_ALWAYS) (void)snprintf(out, size, "ALWAYS");
+    else (void)snprintf(out, size, "%uS", (unsigned)value);
+}
+
+uint16_t gas_buzzer_duration_ms(const gas_config_t *config)
+{
+    if (config->buzzer == GAS_BUZZER_OFF) return 0u;
+    if (config->buzzer >= GAS_BUZZER_ALWAYS) return GAS_BUZZER_FOREVER_MS;
+    return (uint16_t)((uint16_t)config->buzzer * 1000u);
 }
 
 uint16_t gas_warning_threshold(uint16_t alarm)
@@ -203,18 +246,20 @@ void gas_monitor_sample(gas_monitor_t *m, const uint16_t adc[GAS_COUNT], bool va
 }
 void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now)
 {
-    bool changed = false;
     gas_monitor_tick(m, now);
     if (key == 1) m->selected = (uint8_t)((m->selected + 1u) % GAS_SEL_COUNT);
     else if (key == 2 || key == 3) {
+        bool up = key == 2;
         /* 按名字判断选中项，而不是用「只要不是 MAIN」：正是这个上界把
          * selected - 1 约束在 alarm[] 之内。 */
         if (m->selected == GAS_SEL_PERIOD) {
-            changed = period_step(&m->config.sample_period_ms, key == 2);
+            if (period_step(&m->config.sample_period_ms, up)) config_changed(m, now);
         } else if (m->selected >= GAS_SEL_MQ4 && m->selected <= GAS_SEL_MQ8) {
-            changed = threshold_step(&m->config.alarm[m->selected - 1u], key == 2);
+            if (threshold_step(&m->config.alarm[m->selected - 1u], up)) config_changed(m, now);
+        } else if (m->selected == GAS_SEL_BUZZER) {
+            /* 只记账，不重启安全窗口——理由见 config_changed()。 */
+            if (buzzer_step(&m->config.buzzer, up)) mark_dirty(m, now);
         }
-        if (changed) config_changed(m, now);
     } else if (key == 4 && m->reset_ready && m->state == GAS_SAFE_WAIT) {
         clear_lockout(m, now);
         gas_monitor_tick(m, now);
@@ -241,6 +286,19 @@ bool gas_monitor_set_period(gas_monitor_t *m, uint16_t ms, uint32_t now)
     if (!gas_config_valid(&candidate)) return false;
     m->config = candidate;
     config_changed(m, now);
+    return true;
+}
+
+bool gas_monitor_set_buzzer(gas_monitor_t *m, uint16_t value, uint32_t now)
+{
+    gas_config_t candidate = m->config;
+    /* 先判上界再收窄：256 截断成 0 会被 gas_config_valid() 放行，静默变成
+     * 「不响」，那是个安全的取值，但绝不是调用者要的那个。 */
+    if (value > GAS_BUZZER_ALWAYS) return false;
+    candidate.buzzer = (uint8_t)value;
+    if (!gas_config_valid(&candidate)) return false;
+    m->config = candidate;
+    mark_dirty(m, now);
     return true;
 }
 

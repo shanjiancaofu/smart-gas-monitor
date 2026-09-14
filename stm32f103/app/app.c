@@ -9,6 +9,14 @@ _Static_assert(GAS_COUNT == MQ_SENSOR_CHANNELS, "gas channel order must match th
  * 仍是 HAL_GetTick()，超时和运行时长都用它。 */
 #define APP_TICK_MS 10u
 
+/* 蜂鸣器窗口把毫秒换算成节拍，用的是 BSP 的 BUZZER_TICK_MS，所以那个常量
+ * 必须和这里的实际节拍一致；「一直响」的哨兵值两层各定义了一份。这些都是
+ * 分层要求（BSP 不能反向依赖 app），一致性只能在同时看得见两边的这里钉住。 */
+_Static_assert(BUZZER_TICK_MS == APP_TICK_MS,
+               "the buzzer window assumes the TIM2 tick period");
+_Static_assert(BUZZER_FOREVER == GAS_BUZZER_FOREVER_MS,
+               "gas_monitor and alarm_output disagree on the forever sentinel");
+
 static volatile uint32_t app_ticks;
 
 void app_tick_isr(void)
@@ -22,7 +30,8 @@ static void apply_outputs(const gas_monitor_t *m, uint32_t tick)
 {
     bool alarm = m->state == GAS_ALARM || m->state == GAS_FAULT;
     alarm_output_apply(gas_monitor_valve_open(m), m->state == GAS_NORMAL,
-                       !alarm && m->state != GAS_NORMAL, alarm, tick);
+                       !alarm && m->state != GAS_NORMAL, alarm,
+                       gas_buzzer_duration_ms(&m->config), tick);
 }
 
 /* 给每一路各发一行待发应答，且只在两路都空闲时才发。这样限速，14 条记录

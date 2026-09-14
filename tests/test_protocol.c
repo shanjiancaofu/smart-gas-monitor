@@ -74,7 +74,7 @@ static void test_queries(void)
                        "MQ4=500/2400 MQ7=500/2000 MQ8=500/2400") == 0);
 
     command(&p, "CONFIG?", 63100, out, sizeof(out));
-    assert(strcmp(out, "TH MQ4=2400 MQ7=2000 MQ8=2400 PERIOD=100") == 0);
+    assert(strcmp(out, "TH MQ4=2400 MQ7=2000 MQ8=2400 PERIOD=100 BUZZ=5S") == 0);
 
     /* 空记录也要回一行表头而不是什么都不回，否则空应答会被当成链路断了。 */
     command(&p, "HISTORY?", 63100, out, sizeof(out));
@@ -134,11 +134,49 @@ static void test_set(void)
     command(&p, "SET PERIOD 250", 63100, out, sizeof(out));
     assert(strcmp(out, "OK PERIOD=250") == 0 && m.config.sample_period_ms == 250u);
 
+    /* 蜂鸣器的两个特殊档位是词不是数，必须走自己的解析路径：按下面那条
+     * 「先解析数值」的顺序，OFF 和 ALWAYS 会被判成 ERR VALUE 就返回了。 */
+    command(&p, "SET BUZZER 30", 63100, out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=30S") == 0 && m.config.buzzer == 30u);
+    assert(m.dirty);
+    command(&p, "SET BUZZER ALWAYS", 63100, out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=ALWAYS") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
+    command(&p, "SET BUZZER OFF", 63100, out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=OFF") == 0 && m.config.buzzer == GAS_BUZZER_OFF);
+    /* 大小写与 CONFIG? 打印出来的那个 "5S" 都要能原样敲回来。 */
+    command(&p, "SET BUZZER always", 63100, out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=ALWAYS") == 0);
+    command(&p, "SET BUZZER 5S", 63100, out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=5S") == 0 && m.config.buzzer == 5u);
+    /* 0 就是「不响」的编码，数字写法也接受，读回来是同一个档位。 */
+    command(&p, "SET BUZZER 0", 63100, out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=OFF") == 0 && m.config.buzzer == GAS_BUZZER_OFF);
+
+    /* 60 是最大秒数；61 是「一直响」的编码，不读作「61 秒」。 */
+    command(&p, "SET BUZZER 60", 63100, out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=60S") == 0 && m.config.buzzer == 60u);
+    command(&p, "SET BUZZER 61", 63100, out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=ALWAYS") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
+    command(&p, "SET BUZZER 62", 63100, out, sizeof(out));
+    assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
+    /* 256 若先收窄成 uint8 就变成 0，静默地把蜂鸣器关掉：那是合法取值，却
+     * 不是这条命令要的那一个。 */
+    command(&p, "SET BUZZER 256", 63100, out, sizeof(out));
+    assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
+    /* 光一个 S 没有数字，和 "abc" 同类。 */
+    command(&p, "SET BUZZER S", 63100, out, sizeof(out));
+    assert(strcmp(out, "ERR VALUE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
+
     command(&p, "SET MQ9 1000", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR NAME") == 0);
     command(&p, "SET MQ4 abc", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR VALUE") == 0);
     command(&p, "SET MQ4", 63100, out, sizeof(out));
+    assert(strcmp(out, "ERR UNKNOWN") == 0);
+    /* 名字只差一个字母就是另一个名字，不是蜂鸣器的拼写变体。 */
+    command(&p, "SET BUZZZER 5", 63100, out, sizeof(out));
+    assert(strcmp(out, "ERR NAME") == 0);
+    command(&p, "SET BUZZER", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR UNKNOWN") == 0);
     command(&p, "SET MQ4 2500 junk", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR ARGS") == 0 && m.config.alarm[GAS_MQ4] == 2600u);

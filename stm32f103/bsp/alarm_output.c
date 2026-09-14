@@ -14,13 +14,6 @@ void alarm_output_force_safe(void)
 {
     HAL_GPIO_WritePin(RELAY_GPIO_Port, RELAY_Pin, opposite(RELAY_OPEN_LEVEL));
     HAL_GPIO_WritePin(VALVE_LED_GPIO_Port, VALVE_LED_Pin, GPIO_PIN_RESET);
-    /* 蜂鸣器也要收进来。它被几个故障入口调用，而那些路径之后
-     * alarm_output_apply() 不会再跑，少了这一句，引脚就停在最后一次写入的电平
-     * 上——HardFault 若正落在响铃窗口里，蜂鸣器会一直响到复位为止，而「引脚停在
-     * 某个电平上」正是这个函数要消灭的东西。
-     *
-     * 这里只驱动输出，不动 buzzer_alarm / buzzer_start_tick：这两个是
-     * alarm_output_init() 的职责，而这个函数要在故障处理入口里保持最小。 */
     HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, opposite(BUZZER_ON_LEVEL));
 }
 
@@ -35,13 +28,18 @@ void alarm_output_init(void)
 }
 
 void alarm_output_apply(bool valve_open, bool green, bool yellow, bool alarm,
-                        uint32_t tick)
+                        uint16_t buzzer_ms, uint32_t tick)
 {
     bool buzzer_on;
     /* 新的一次报警会重新开始计时窗口；报警持续并不会。 */
     if (alarm && !buzzer_alarm) buzzer_start_tick = tick;
     buzzer_alarm = alarm;
-    buzzer_on = alarm && (uint32_t)(tick - buzzer_start_tick) < BUZZER_ALARM_TICKS;
+    /* 不响（0 ms）在这里不需要特判：窗口长度 0 个节拍，一进去就已经过期了。
+     * 「一直响」需要特判，因为它换算成节拍不是「很长」，而是 65 秒。 */
+    buzzer_on = alarm;
+    if (buzzer_on && buzzer_ms != BUZZER_FOREVER)
+        buzzer_on = (uint32_t)(tick - buzzer_start_tick) <
+                    (uint32_t)(buzzer_ms / BUZZER_TICK_MS);
     HAL_GPIO_WritePin(RELAY_GPIO_Port, RELAY_Pin,
                       valve_open ? RELAY_OPEN_LEVEL : opposite(RELAY_OPEN_LEVEL));
     HAL_GPIO_WritePin(VALVE_LED_GPIO_Port, VALVE_LED_Pin,

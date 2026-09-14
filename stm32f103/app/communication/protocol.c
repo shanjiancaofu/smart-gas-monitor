@@ -59,6 +59,22 @@ static bool channel_of(const char *token, gas_channel_t *out)
     return false;
 }
 
+/* SET BUZZER 的取值：OFF、ALWAYS，或一个秒数。末尾的 S 可有可无，这样
+ * CONFIG? 打印出来的 "5S" 能原样敲回来。范围不在这里判，交给
+ * gas_monitor_set_buzzer()：超范围要回 ERR RANGE，而不是 ERR VALUE。 */
+static bool parse_buzzer(const char *token, uint16_t *out)
+{
+    char digits[TOKEN_LEN];
+    size_t n = strlen(token);
+    if (strcmp(token, "OFF") == 0) { *out = GAS_BUZZER_OFF; return true; }
+    if (strcmp(token, "ALWAYS") == 0) { *out = GAS_BUZZER_ALWAYS; return true; }
+    if (n > 0u && token[n - 1u] == 'S') --n;
+    if (n == 0u || n + 1u > sizeof(digits)) return false;
+    memcpy(digits, token, n);
+    digits[n] = '\0';
+    return parse_u16(digits, out);
+}
+
 /* 排入一条自身即完整的应答。 */
 static void one(protocol_t *p, const char *text)
 {
@@ -127,7 +143,20 @@ void protocol_command(protocol_t *p, const char *line, uint32_t now)
     } else if (count == 3u && strcmp(tokens[0], "SET") == 0) {
         gas_channel_t channel;
         uint16_t value;
-        if (!parse_u16(tokens[2], &value)) {
+        /* 蜂鸣器自己解析取值，所以它必须排在那条「先解析数值」的路径之前：
+         * 按原顺序，OFF 和 ALWAYS 会先被判成 ERR VALUE 就返回了。 */
+        if (strcmp(tokens[1], "BUZZER") == 0) {
+            char name[8];
+            if (!parse_buzzer(tokens[2], &value)) {
+                one(p, "ERR VALUE");
+            } else if (!gas_monitor_set_buzzer(p->monitor, value, now)) {
+                one(p, "ERR RANGE");
+            } else {
+                /* 回显名字而不是数字：这样打印出来的值可以原样敲回去。 */
+                gas_buzzer_name((uint8_t)value, name, sizeof(name));
+                onef(p, "OK BUZZ=%s", name);
+            }
+        } else if (!parse_u16(tokens[2], &value)) {
             one(p, "ERR VALUE");
         } else if (channel_of(tokens[1], &channel)) {
             if (gas_monitor_set_threshold(p->monitor, channel, value, now))
@@ -194,12 +223,14 @@ const char *protocol_next(protocol_t *p)
         return p->text;
     case PROTOCOL_CONFIG:
         if (p->line == 0u) {
+            char buzz[8];
+            gas_buzzer_name(m->config.buzzer, buzz, sizeof(buzz));
             (void)snprintf(p->text, sizeof(p->text),
-                           "TH %s=%u %s=%u %s=%u PERIOD=%u",
+                           "TH %s=%u %s=%u %s=%u PERIOD=%u BUZZ=%s",
                            gas_channel_name(GAS_MQ4), m->config.alarm[GAS_MQ4],
                            gas_channel_name(GAS_MQ7), m->config.alarm[GAS_MQ7],
                            gas_channel_name(GAS_MQ8), m->config.alarm[GAS_MQ8],
-                           m->config.sample_period_ms);
+                           m->config.sample_period_ms, buzz);
         } else {
             p->job = PROTOCOL_IDLE;
             p->line = 0u;
