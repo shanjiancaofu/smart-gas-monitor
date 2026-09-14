@@ -12,13 +12,17 @@ typedef enum {
 } gas_channel_t;
 
 /* Selector reached by pressing KEY1 repeatedly. The first three line up with
- * the channel indices so alarm[selected - 1] picks the right threshold. */
+ * the channel indices so alarm[selected - 1] picks the right threshold, and
+ * gas_monitor_key() relies on that range to bound the index. */
 typedef enum {
     GAS_SEL_MAIN = 0,
     GAS_SEL_MQ4,
     GAS_SEL_MQ7,
     GAS_SEL_MQ8,
     GAS_SEL_PERIOD,
+    /* Browse-only page. Nothing here is adjustable, so KEY2/KEY3 are left for
+     * the caller to interpret as history scrolling. */
+    GAS_SEL_HISTORY,
     GAS_SEL_COUNT
 } gas_setting_t;
 
@@ -47,7 +51,7 @@ typedef struct {
 } gas_config_t;
 
 typedef enum { GAS_WARMUP, GAS_NORMAL, GAS_WARNING, GAS_ALARM,
-               GAS_SAFE_WAIT, GAS_FAULT } gas_state_t;
+               GAS_SAFE_WAIT, GAS_FAULT, GAS_STATE_COUNT } gas_state_t;
 
 typedef struct {
     gas_config_t config;

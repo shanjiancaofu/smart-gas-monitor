@@ -132,10 +132,14 @@ void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now)
     bool changed = false;
     gas_monitor_tick(m, now);
     if (key == 1) m->selected = (uint8_t)((m->selected + 1u) % GAS_SEL_COUNT);
-    else if ((key == 2 || key == 3) && m->selected != GAS_SEL_MAIN) {
-        changed = m->selected == GAS_SEL_PERIOD
-            ? period_step(&m->config.sample_period_ms, key == 2)
-            : threshold_step(&m->config.alarm[m->selected - 1u], key == 2);
+    else if (key == 2 || key == 3) {
+        /* Test the selector by name and not by "anything but MAIN": the upper
+         * bound is what keeps selected - 1 inside alarm[]. */
+        if (m->selected == GAS_SEL_PERIOD) {
+            changed = period_step(&m->config.sample_period_ms, key == 2);
+        } else if (m->selected >= GAS_SEL_MQ4 && m->selected <= GAS_SEL_MQ8) {
+            changed = threshold_step(&m->config.alarm[m->selected - 1u], key == 2);
+        }
         if (changed) {
             m->dirty = true; m->changed_ms = now;
             /* Changed limits cannot inherit an earlier safe interval. */

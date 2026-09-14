@@ -19,15 +19,15 @@ void app_tick_isr(void)
     ++app_ticks;
 }
 
-static void apply_outputs(const gas_monitor_t *m)
+static void apply_outputs(const gas_monitor_t *m, uint32_t now)
 {
     bool alarm = m->state == GAS_ALARM || m->state == GAS_FAULT;
     alarm_output_apply(gas_monitor_valve_open(m), m->state == GAS_NORMAL,
-                       !alarm && m->state != GAS_NORMAL, alarm);
+                       !alarm && m->state != GAS_NORMAL, alarm, now);
 }
 
 void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
-              TIM_HandleTypeDef *tick)
+              I2C_HandleTypeDef *oled, TIM_HandleTypeDef *tick)
 {
     gas_config_t config;
     uint32_t now;
@@ -46,9 +46,14 @@ void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
     app->store.write = at24c02_write;
     gas_config_defaults(&config);
     app->storage_ok = settings_load(&app->store, &config);
+    /* The log shares the EEPROM with the settings, so it is opened after them
+     * and reports nothing: an unreadable log is an empty log. */
+    (void)history_init(&app->history, &app->store);
     now = HAL_GetTick();
     gas_monitor_init(&app->monitor, &config, now);
-    apply_outputs(&app->monitor);
+    display_init(&app->display, oled);
+    app->last_state = app->monitor.state;
+    apply_outputs(&app->monitor, now);
 }
 
 void app_run(app_t *app)
@@ -75,16 +80,40 @@ void app_run(app_t *app)
     }
     gas_monitor_tick(&app->monitor, now);
     keys = key_poll(&app->keys, now);
-    for (i = 0; i < KEY_COUNT; ++i)
-        if (keys & (1u << i)) gas_monitor_key(&app->monitor, i + 1u, now);
-    apply_outputs(&app->monitor);
+    for (i = 0; i < KEY_COUNT; ++i) {
+        unsigned key;
+        if ((keys & (1u << i)) == 0u) continue;
+        key = i + 1u;
+        /* The history page has nothing adjustable, so KEY2/KEY3 browse the log
+         * there instead of reaching the settings handler. */
+        if (app->monitor.selected == GAS_SEL_HISTORY &&
+            display_history_key(&app->display, &app->history, key)) continue;
+        gas_monitor_key(&app->monitor, key, now);
+    }
+    apply_outputs(&app->monitor, now);
+    /* One record per alarm episode. The state machine is the authority on when
+     * an alarm starts, and the previous state is what makes a persisting alarm
+     * write once rather than on every sample. */
+    if (app->monitor.state == GAS_ALARM && app->last_state != GAS_ALARM) {
+        history_entry_t entry;
+        memset(&entry, 0, sizeof(entry));
+        entry.uptime_s = now / 1000u;
+        for (i = 0; i < GAS_COUNT; ++i) entry.adc[i] = app->monitor.adc[i];
+        entry.alarm_mask = app->monitor.alarm_mask;
+        (void)history_append(&app->history, &entry);
+        /* The page is showing a record list that just changed underneath it. */
+        if (app->monitor.selected == GAS_SEL_HISTORY) app->display.history_index = 0u;
+    }
+    app->last_state = app->monitor.state;
+    display_update(&app->display, &app->monitor, &app->history, app->storage_ok, now);
     if (gas_monitor_save_due(&app->monitor, now) &&
         (uint32_t)(now - app->last_save_attempt) >= GAS_SAVE_DELAY_MS) {
         app->last_save_attempt = now;
         app->storage_ok = settings_save(&app->store, &app->monitor.config);
         if (app->storage_ok) app->monitor.dirty = false;
         /* Re-evaluate freshness after bounded, blocking EEPROM operations. */
-        gas_monitor_tick(&app->monitor, HAL_GetTick());
-        apply_outputs(&app->monitor);
+        now = HAL_GetTick();
+        gas_monitor_tick(&app->monitor, now);
+        apply_outputs(&app->monitor, now);
     }
 }
