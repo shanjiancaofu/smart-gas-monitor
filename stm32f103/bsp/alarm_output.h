@@ -1,11 +1,11 @@
 #ifndef ALARM_OUTPUT_H
 #define ALARM_OUTPUT_H
-/* main.h carries the CubeMX User Label macros this module drives. */
+/* main.h 里是本模块所要驱动的那些 CubeMX User Label 宏。 */
 #include "main.h"
 #include "stm32f1xx_hal.h"
 #include <stdbool.h>
 
-/* Verify against the actual relay contacts: energised means valve OPEN. */
+/* 需按实物继电器接点确认：线圈通电表示阀门开启。 */
 #ifndef RELAY_OPEN_LEVEL
 #define RELAY_OPEN_LEVEL GPIO_PIN_SET
 #endif
@@ -13,20 +13,19 @@
 #define BUZZER_ON_LEVEL GPIO_PIN_SET
 #endif
 
-/* How long the buzzer sounds from the moment an alarm starts. It is fixed
- * rather than configurable: its job is to be noticed, not to be tuned. */
-#define BUZZER_ALARM_TICKS 500u /* TIM2: 10 ms per tick */
+/* 蜂鸣器从报警开始那一刻起鸣响的时长。它是固定的而不是可配置的：它的职责是
+ * 被注意到，而不是被调来调去。 */
+#define BUZZER_ALARM_TICKS 500u /* TIM2：每个节拍 10 ms */
 
-/* Drives the relay closed and quiets every indicator. */
+/* 把继电器驱动到关闭，并让所有指示输出静默。 */
 void alarm_output_init(void);
-/* Drives only the relay and valve indicator to the closed state, and is safe to
- * call from a fault handler. It writes ODR, so it cannot drive a pin that is
- * still configured as an input: between reset and MX_GPIO_Init the relay pin is
- * floating, and only a hardware pulldown holds it in the safe state. */
+/* 只把继电器和阀门指示驱动到关闭状态，并且可以从故障处理入口安全调用。它写的
+ * 是 ODR，引脚仍配置为输入时驱动不了：复位后到 MX_GPIO_Init 之间继电器引脚是
+ * 浮空的，只有硬件下拉能把它保持在安全状态。 */
 void alarm_output_force_safe(void);
-/* Applies the valve decision before the indicators or any slow I/O. The buzzer
- * is driven for BUZZER_ALARM_TICKS after each fresh alarm and then falls silent,
- * so a latched fault does not sound until someone acknowledges it. */
+/* 先落实阀门决定，再处理指示器与其他慢速 I/O。蜂鸣器在每一次新报警之后驱动
+ * BUZZER_ALARM_TICKS 个节拍，随后归于静默，因此锁存的故障不会响到有人确认它
+ * 为止。 */
 void alarm_output_apply(bool valve_open, bool green, bool yellow, bool alarm,
                         uint32_t tick);
 #endif

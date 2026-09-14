@@ -5,10 +5,10 @@
  *   2..5   uptime_s
  *   6..11  adc[GAS_COUNT]
  *   12     alarm_mask
- *   13     reserved, written as zero
- *   14..15 crc16 over 0..13
- * An erased slot reads as all ones, which fails both the CRC and the seq
- * sentinel, so it is skipped without a separate "is empty" flag. */
+ *   13     预留，写零
+ *   14..15 crc16，覆盖 0..13
+ * 擦除后的槽位读出全 1，既通不过 CRC 也等于 seq 哨兵值，因此不需要额外
+ * 的「是否为空」标志就会被跳过。 */
 #define HISTORY_CRC_AT 14u
 #define HISTORY_SEQ_NONE 0xffffu
 
@@ -52,7 +52,7 @@ static bool decode(const uint8_t *b, history_entry_t *out)
     return true;
 }
 
-/* Reached only with a slot already in hand, so the CRC is not repeated. */
+/* 只在已经确定槽位的情况下调用，所以不再重复校验 CRC。 */
 static bool read_slot(const history_t *h, unsigned slot, history_entry_t *out)
 {
     uint8_t raw[HISTORY_SLOT_SIZE];
@@ -72,8 +72,8 @@ bool history_init(history_t *h, const settings_io_t *io)
     for (i = 0; i < HISTORY_SLOTS; ++i) {
         history_entry_t entry;
         if (!read_slot(h, i, &entry)) continue;
-        /* Wrapped sequence numbers compare as an unsigned distance, the same
-         * way the settings slots pick the newer of two copies. */
+        /* 回绕后的序号按无符号距离比较，与配置槽位在两份副本中挑出较新
+         * 的那一份是同一套办法。 */
         if (!found || (uint16_t)(entry.seq - h->next_seq) < 0x8000u) {
             h->next_seq = entry.seq;
             newest = i;
@@ -87,8 +87,8 @@ bool history_init(history_t *h, const settings_io_t *io)
         return false;
     }
     h->next_seq = (uint16_t)(h->next_seq + 1u);
-    /* The slot after the newest one is both the oldest and the next to write,
-     * whether or not the log has wrapped yet. */
+    /* 最新一条之后的那个槽位既是最旧的一条，也是下一个要写的槽位，
+     * 无论记录是否已经回绕。 */
     h->next_slot = (uint8_t)((newest + 1u) % HISTORY_SLOTS);
     return true;
 }
@@ -108,8 +108,8 @@ bool history_append(history_t *h, history_entry_t *entry)
     raw[12] = entry->alarm_mask;
     put16(raw + HISTORY_CRC_AT, crc16(raw, HISTORY_CRC_AT));
     if (!h->io->write(h->io->context, slot_offset(slot), raw, sizeof(raw))) return false;
-    /* Only bookkept once the write is confirmed, so a failed write is retried
-     * into the same slot instead of leaving a gap behind. */
+    /* 写入确认之后才记账，因此写失败会在同一个槽位重试，而不是留下一个
+     * 空洞。 */
     h->next_seq = (uint16_t)(h->next_seq + 1u);
     if (h->count < HISTORY_SLOTS) ++h->count;
     h->next_slot = (uint8_t)((slot + 1u) % HISTORY_SLOTS);
@@ -122,7 +122,7 @@ bool history_get(const history_t *h, uint8_t index, history_entry_t *out)
 {
     unsigned slot;
     if (index >= h->count || h->io == NULL || h->io->read == NULL) return false;
-    /* Walk backwards from the slot just before next_slot, which is the newest. */
+    /* 从 next_slot 的前一个槽位向前回溯，那个槽位就是最新的一条。 */
     slot = ((unsigned)h->next_slot + HISTORY_SLOTS - 1u - index) % HISTORY_SLOTS;
     return read_slot(h, slot, out);
 }

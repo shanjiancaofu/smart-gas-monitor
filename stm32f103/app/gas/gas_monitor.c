@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Periods the keys step through. A value loaded from EEPROM may sit between
- * two entries; editing then snaps to the next one in the pressed direction. */
+/* 按键逐档切换的周期列表。从 EEPROM 载入的值可能落在两档之间；此时编辑会
+ * 朝按键方向吸附到相邻的下一档。 */
 static const uint16_t period_steps[] = {100, 200, 500, 1000, 2000, 5000};
 #define PERIOD_STEP_COUNT (sizeof(period_steps) / sizeof(period_steps[0]))
 
@@ -55,7 +55,7 @@ static void clear_lockout(gas_monitor_t *m, uint32_t now)
 
 void gas_config_defaults(gas_config_t *c)
 {
-    /* Demonstration ADC counts, not calibrated ppm thresholds. */
+    /* 课设演示用的 ADC counts，不是标定过的 ppm 阈值。 */
     c->alarm[GAS_MQ4] = 2400;
     c->alarm[GAS_MQ7] = 2000;
     c->alarm[GAS_MQ8] = 2400;
@@ -72,9 +72,8 @@ bool gas_config_valid(const gas_config_t *c)
            c->sample_period_ms % GAS_TICK_MS == 0u;
 }
 
-/* Everything that has to happen when a limit changes, wherever the change came
- * from: the new value needs saving, and an interval that was being timed
- * against the old limits must not be allowed to mature under the new ones. */
+/* 限值变化时该做的事都在这里，不管变化来自哪里：新值需要保存，而正在按旧
+ * 限值计时的那个区间，不能让它换上新限值后继续计时直到成立。 */
 static void config_changed(gas_monitor_t *m, uint32_t now)
 {
     m->dirty = true;
@@ -143,8 +142,8 @@ void gas_monitor_init(gas_monitor_t *m, const gas_config_t *c, uint32_t now)
     else gas_config_defaults(&m->config);
     m->started_ms = now;
     m->state = GAS_WARMUP;
-    /* A healthy power-up opens the valve once warm-up confirms safety. Only an
-     * alarm or a sampler fault latches it shut for manual release. */
+    /* 正常上电会在预热结束且环境安全时自动开阀。只有报警或采样器故障才会
+     * 锁存关阀，等待人工解除。 */
     m->latched = m->config.lockout;
 }
 void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
@@ -154,9 +153,8 @@ void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
     uint8_t alarm = 0;
     m->reset_ready = false;
     if (!m->sample_valid || (uint32_t)(now - m->sample_ms) >= gas_sample_timeout_ms(m)) {
-        /* Before the first conversion the sampler has not failed, it has not
-         * started: that is still warm-up, and it must not latch the valve. Once
-         * an attempt has been made, a missing reading is a sampler fault. */
+        /* 第一次转换之前，采样器不是失败了，而是还没开始：这仍属预热，不能
+         * 锁存阀门。只要尝试过一次，读数缺失就是采样器故障。 */
         m->state = m->sample_attempted ? GAS_FAULT : GAS_WARMUP;
         if (m->sample_attempted) set_lockout(m, now);
         m->safe_timing = false;
@@ -187,11 +185,11 @@ void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
 void gas_monitor_sample(gas_monitor_t *m, const uint16_t adc[GAS_COUNT], bool valid, uint32_t now)
 {
     unsigned i;
-    /* A fresh sample must not conceal an earlier scheduler/sample outage. */
+    /* 新样本不能掩盖之前发生过的调度或采样中断。 */
     if (m->sample_attempted && (uint32_t)(now - m->sample_ms) >= gas_sample_timeout_ms(m))
         gas_monitor_tick(m, now);
-    /* Every conversion attempt counts, successful or not: a sampler that keeps
-     * returning nothing is a fault, not an endless warm-up. */
+    /* 每次转换尝试都算数，成功与否都一样：一直读不出东西的采样器是故障，
+     * 不是没完没了的预热。 */
     m->sample_attempted = true;
     m->sample_valid = valid;
     if (valid) {
@@ -209,8 +207,8 @@ void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now)
     gas_monitor_tick(m, now);
     if (key == 1) m->selected = (uint8_t)((m->selected + 1u) % GAS_SEL_COUNT);
     else if (key == 2 || key == 3) {
-        /* Test the selector by name and not by "anything but MAIN": the upper
-         * bound is what keeps selected - 1 inside alarm[]. */
+        /* 按名字判断选中项，而不是用「只要不是 MAIN」：正是这个上界把
+         * selected - 1 约束在 alarm[] 之内。 */
         if (m->selected == GAS_SEL_PERIOD) {
             changed = period_step(&m->config.sample_period_ms, key == 2);
         } else if (m->selected >= GAS_SEL_MQ4 && m->selected <= GAS_SEL_MQ8) {
@@ -228,9 +226,8 @@ bool gas_monitor_set_threshold(gas_monitor_t *m, gas_channel_t channel,
     gas_config_t candidate = m->config;
     if (channel >= GAS_COUNT) return false;
     candidate.alarm[channel] = value;
-    /* Validating the whole candidate rather than just the new field means the
-     * running configuration can never drift out of the range the decoder
-     * accepts, whichever field a caller thought it was changing. */
+    /* 校验整个候选配置而不只是被改动的那个字段，这样无论调用者以为自己在
+     * 改哪个字段，运行中的配置都不会漂出解码器接受的范围。 */
     if (!gas_config_valid(&candidate)) return false;
     m->config = candidate;
     config_changed(m, now);

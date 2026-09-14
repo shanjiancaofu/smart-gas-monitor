@@ -3,32 +3,30 @@
 #include "stm32f1xx_hal.h"
 #include <string.h>
 
-/* key_bits() reads the whole nibble at once, so the four keys must be that
- * nibble. Reordering them in the .ioc breaks this assertion rather than
- * silently mapping KEY1 onto the wrong bit. */
+/* key_bits() 一次读整个半字节，所以四个按键必须正好落在这个半字节上。在 .ioc
+ * 里改动它们的顺序会在这里触发断言，而不是把 KEY1 悄悄映射到错误的位上。 */
 _Static_assert(KEY1_Pin == GPIO_PIN_12 && KEY2_Pin == GPIO_PIN_13 &&
                KEY3_Pin == GPIO_PIN_14 && KEY4_Pin == GPIO_PIN_15,
                "key_bits() assumes KEY1..KEY4 are PB12..PB15");
 
-/* PB12..PB15 as key bits 0..3, the same order key_bits() produces. */
+/* PB12～PB15 对应按键位 0～3，与 key_bits() 产生的顺序一致。 */
 static const uint16_t key_pins[KEY_COUNT] = {
     KEY1_Pin, KEY2_Pin, KEY3_Pin, KEY4_Pin
 };
 
-/* Lines the EXTI handler has seen a falling edge on but the main loop has not
- * consumed yet. */
+/* EXTI 处理函数已经看到下降沿、但主循环尚未取走的那些线。 */
 static volatile uint8_t exti_pending;
 
 static uint8_t key_bits(void)
 {
-    /* Active low, so invert: a pressed key reads as 1. */
+    /* 低电平有效，因此取反：按下的键读出来是 1。 */
     return (uint8_t)(~(KEY1_GPIO_Port->IDR >> 12) & 15u);
 }
 
 void key_init(key_t *keys)
 {
     memset(keys, 0, sizeof(*keys));
-    /* A key held at startup must be released before it can register. */
+    /* 上电时就已按住的键必须先释放一次，之后才能产生事件。 */
     keys->raw = keys->stable = key_bits();
     exti_pending = 0;
 }
@@ -36,9 +34,8 @@ void key_init(key_t *keys)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     unsigned i;
-    /* Called from EXTI15_10_IRQHandler. It only remembers which line moved: the
-     * debounce and the dispatch stay in the main loop, so nothing here touches
-     * the ADC, the I2C bus or the EEPROM. */
+    /* 由 EXTI15_10_IRQHandler 调用。这里只记住哪一路动了：消抖和分发都留在
+     * 主循环，所以此处不碰 ADC、I2C 总线和 EEPROM。 */
     for (i = 0; i < KEY_COUNT; ++i)
         if (GPIO_Pin == key_pins[i]) exti_pending |= (uint8_t)(1u << i);
 }
@@ -47,8 +44,8 @@ static uint8_t key_take_edges(void)
 {
     uint32_t primask = __get_PRIMASK();
     uint8_t edges;
-    /* Restore rather than enable: this must not silently unmask interrupts if a
-     * caller ever polls from inside its own critical section. */
+    /* 恢复而不是使能：万一将来有调用方在自己的临界区里轮询，这里不能悄悄
+     * 把中断重新打开。 */
     __disable_irq();
     edges = exti_pending;
     exti_pending = 0;
@@ -62,9 +59,9 @@ uint8_t key_poll(key_t *keys, uint32_t now)
     unsigned i;
     for (i = 0; i < KEY_COUNT; ++i) {
         uint8_t mask = (uint8_t)(1u << i);
-        /* A latched edge restarts the window even when this poll already sees the
-         * line settled again, so a press that came and went between two polls is
-         * still timed from the edge rather than from the poll. */
+        /* 即使本次轮询已经看到该线回到稳定状态，锁存的边沿仍然重新开始计时
+         * 窗口，于是在两次轮询之间按下又松开的动作，仍以边沿而不是以轮询
+         * 时刻计时。 */
         if ((raw & mask) != (keys->raw & mask) || (edges & mask)) {
             keys->raw = (uint8_t)((keys->raw & (uint8_t)~mask) | (raw & mask));
             keys->changed_ms[i] = now;

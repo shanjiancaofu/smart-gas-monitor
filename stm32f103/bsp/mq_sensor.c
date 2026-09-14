@@ -1,6 +1,6 @@
 #include "mq_sensor.h"
 
-/* PA0, PA1, PA4 in MQ4, MQ7, MQ8 order. */
+/* PA0、PA1、PA4，按 MQ4、MQ7、MQ8 的顺序。 */
 static const uint32_t channels[MQ_SENSOR_CHANNELS] = {
     ADC_CHANNEL_0, ADC_CHANNEL_1, ADC_CHANNEL_4
 };
@@ -16,13 +16,13 @@ bool mq_sensor_read(mq_sensor_t *sensor, uint16_t values[MQ_SENSOR_CHANNELS])
     ADC_ChannelConfTypeDef config = {0};
     unsigned i, n;
     config.Rank = ADC_REGULAR_RANK_1;
-    /* Long sampling suits the high-impedance divider on the sensor outputs. */
+    /* 采样时间取长，以配合传感器输出上的高阻抗分压。 */
     config.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
     for (i = 0; i < MQ_SENSOR_CHANNELS; ++i) {
         uint32_t sum = 0;
         config.Channel = channels[i];
         if (HAL_ADC_ConfigChannel(sensor->adc, &config) != HAL_OK) return false;
-        /* Single conversion mode: every pass needs its own start. */
+        /* 单次转换模式：每一轮都要单独启动。 */
         for (n = 0; n < MQ_SENSOR_AVERAGES; ++n) {
             if (HAL_ADC_Start(sensor->adc) != HAL_OK ||
                 HAL_ADC_PollForConversion(sensor->adc, 5) != HAL_OK) {

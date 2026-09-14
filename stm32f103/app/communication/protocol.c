@@ -3,20 +3,19 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Enough for every command: a verb and at most two arguments. */
+/* 够放所有命令：一个动词加至多两个参数。 */
 #define TOKEN_MAX 3u
 #define TOKEN_LEN 12u
 
 static char upper(char c)
 {
-    /* Deliberately not toupper(): this must not depend on the C locale that
-     * newlib happens to be built with. */
+    /* 刻意不用 toupper()：这里不能依赖 newlib 恰好是用哪个 C locale
+     * 编译出来的。 */
     return (c >= 'a' && c <= 'z') ? (char)(c - 'a' + 'A') : c;
 }
 
-/* Splits on runs of spaces. Returns TOKEN_MAX + 1 to mean "more arguments than
- * any command takes", which is a syntax error rather than a silent truncation
- * of, say, "SET MQ4 2500 junk". */
+/* 按连续空格切分。返回 TOKEN_MAX + 1 表示「参数比任何命令能接收的还
+ * 多」，这是语法错误，而不是对「SET MQ4 2500 junk」这类输入悄悄截断。 */
 static unsigned split(char *text, char tokens[TOKEN_MAX][TOKEN_LEN])
 {
     unsigned count = 0u;
@@ -60,7 +59,7 @@ static bool channel_of(const char *token, gas_channel_t *out)
     return false;
 }
 
-/* Queues a response that is complete in itself. */
+/* 排入一条自身即完整的应答。 */
 static void one(protocol_t *p, const char *text)
 {
     (void)snprintf(p->text, sizeof(p->text), "%s", text);
@@ -110,8 +109,8 @@ void protocol_command(protocol_t *p, const char *line, uint32_t now)
     work[i] = '\0';
 
     count = split(work, tokens);
-    /* A blank line is a line ending, not a command, and answering it would
-     * just make a terminal's echo look like a conversation. */
+    /* 空行是行结束，不是命令；对它回话只会让终端的回显看起来像一场
+     * 对话。 */
     if (count == 0u) return;
     if (count > TOKEN_MAX) {
         one(p, "ERR ARGS");
@@ -146,8 +145,7 @@ void protocol_command(protocol_t *p, const char *line, uint32_t now)
             gas_monitor_close_valve(p->monitor, now);
             one(p, "OK VALVE=CLOSED");
         } else {
-            /* There is deliberately no remote open. Clearing the latch is a
-             * job for someone standing at the panel. */
+            /* 刻意没有远程开阀。解除锁存得靠站在面板前的人。 */
             one(p, "ERR ONLY CLOSE");
         }
     } else {
@@ -167,8 +165,7 @@ const char *protocol_next(protocol_t *p)
     case PROTOCOL_NOTICE: {
         char mask[16];
         gas_alarm_mask_name(m->alarm_mask, mask, sizeof(mask));
-        /* Sent unprompted so a phone watching the link hears about an alarm
-         * without having to poll for it. */
+        /* 主动推送，这样盯着这条链路的手机不必轮询就能知道发生了报警。 */
         (void)snprintf(p->text, sizeof(p->text), "ALARM %s %s=%u %s=%u %s=%u", mask,
                        gas_channel_name(GAS_MQ4), m->adc[GAS_MQ4],
                        gas_channel_name(GAS_MQ7), m->adc[GAS_MQ7],
@@ -227,8 +224,8 @@ const char *protocol_next(protocol_t *p)
                 (void)snprintf(p->text, sizeof(p->text), "%u UNREADABLE", index + 1u);
             } else {
                 gas_alarm_mask_name(entry.alarm_mask, mask, sizeof(mask));
-                /* Index first: it is what the browse keys on the panel move
-                 * through, so the two views can be lined up. */
+                /* 索引放在最前面：面板上翻阅键移动的就是它，这样两处
+                 * 视图能对得上。 */
                 (void)snprintf(p->text, sizeof(p->text),
                                "%u SEQ=%u %s=%u %s=%u %s=%u ALARM=%s UP=%lu",
                                index + 1u, entry.seq,

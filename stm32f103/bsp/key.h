@@ -11,10 +11,9 @@ typedef struct {
     uint8_t raw, stable;
 } key_t;
 
-/* PB12..PB15 with the CubeMX pull-ups, active low. */
+/* PB12～PB15，CubeMX 配置为上拉输入，低电平有效。 */
 void key_init(key_t *keys);
-/* Poll from the main loop; returns one bit per debounced press. The EXTI handler
- * only latches which line moved, in HAL_GPIO_EXTI_Callback() over in key.c; the
- * debounce and the dispatch stay here. */
+/* 在主循环里轮询；每次消抖后的按下返回一位。EXTI 处理函数只锁存哪一路动了，
+ * 就在 key.c 的 HAL_GPIO_EXTI_Callback() 里；消抖和分发留在这里。 */
 uint8_t key_poll(key_t *keys, uint32_t now);
 #endif

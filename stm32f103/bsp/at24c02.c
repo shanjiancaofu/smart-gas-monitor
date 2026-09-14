@@ -19,7 +19,7 @@ bool at24c02_write(void *context, uint16_t offset, const uint8_t *data, size_t s
     at24c02_t *eeprom = context;
     if (offset >= AT24C02_SIZE || size > (size_t)(AT24C02_SIZE - offset)) return false;
     while (size != 0) {
-        /* AT24C02 page size is 8 bytes; never wrap inside a page. */
+        /* AT24C02 页大小为 8 字节；一次写入不能在页内回绕。 */
         size_t count = 8u - (offset % 8u);
         if (count > size) count = size;
         if (HAL_I2C_Mem_Write(eeprom->i2c, eeprom->address, offset,

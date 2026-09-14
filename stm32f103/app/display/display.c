@@ -3,21 +3,20 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Both fonts are fixed width, so a line is a whole number of characters wide:
- * 128 / 8 and 126 / 6, the last two pixels of a small line being left alone. */
+/* 两种字模都是等宽的，一行正好是整数个字符宽：128 / 8 和 126 / 6；
+ * 小号行末尾的两个像素留空不用。 */
 #define LARGE_COLS 16u
 #define SMALL_COLS 21u
 _Static_assert(SMALL_COLS >= LARGE_COLS,
                "display row buffer is too small");
-/* Scratch for one formatted line before it is padded down to a panel row. */
+/* 一行格式化文字的暂存区，随后会补齐到面板一行的宽度。 */
 #define LINE_MAX 48u
 
 #define SCREEN_REALTIME 0u
 #define SCREEN_SETTINGS 1u
 #define SCREEN_HISTORY  2u
 
-/* Padded to the full row so the previous, longer contents of that row are
- * overwritten rather than left behind it. */
+/* 补齐到整行，使该行原先较长的内容被覆盖，而不是残留在它后面。 */
 static void put(display_t *d, unsigned page, bool large, const char *text)
 {
     char row[SMALL_COLS + 1u];
@@ -48,9 +47,8 @@ static void draw_realtime(display_t *d, const gas_monitor_t *m)
     for (i = 0; i < GAS_COUNT; ++i)
         putf(d, (unsigned)(i * 2u), true, "%s %5u/%4u",
              gas_channel_name((gas_channel_t)i), m->adc[i], m->config.alarm[i]);
-    /* The valve word is shown next to the state because they disagree on
-     * purpose: a latched unit reads ALARM while the valve stays shut, and one
-     * that has recovered reads SAFE while the valve is still shut. */
+    /* 阀门字样与状态并排显示，因为两者不一致是刻意的：锁存时显示 ALARM
+     * 而阀门保持关闭，已经恢复时显示 SAFE 而阀门仍然关闭。 */
     putf(d, 6u, true, "%-7s %s", gas_state_name(m->state),
          valve_name(gas_monitor_valve_open(m)));
 }
@@ -65,8 +63,8 @@ static void draw_settings(display_t *d, const gas_monitor_t *m, bool storage_ok)
              gas_channel_name((gas_channel_t)i), m->config.alarm[i]);
     putf(d, 4u, false, "%c PERIOD %5u ms",
          m->selected == GAS_SEL_PERIOD ? '>' : ' ', m->config.sample_period_ms);
-    /* The stored copy is what survives a power cut, so a failed write is worth
-     * showing even though the running configuration is unaffected. */
+    /* 掉电后能留下的是存储的那一份，所以即使运行中的配置不受影响，
+     * 写入失败也值得显示出来。 */
     putf(d, 5u, false, "STORE %s", storage_ok ? "OK" : "FAIL");
     putf(d, 6u, false, "ALARMS %lu", (unsigned long)m->alarm_count);
     putf(d, 7u, false, "KEY1 NEXT KEY2/3 ADJ");
@@ -99,8 +97,8 @@ static void draw_history(display_t *d, const history_t *h)
         return;
     }
     gas_alarm_mask_name(entry.alarm_mask, mask, sizeof(mask));
-    /* Index and sequence are both shown: the index is where the browse keys
-     * are, the sequence says how many alarms have happened in total. */
+    /* 索引与序号都显示：索引对应翻阅键的位置，序号说明总共发生过多少次
+     * 报警。 */
     putf(d, 0u, false, "HISTORY %u/%u", d->history_index + 1u, count);
     putf(d, 1u, false, "REC %-4u SEQ %u", d->history_index + 1u, entry.seq);
     putf(d, 2u, false, "UP %lu s", (unsigned long)entry.uptime_s);
@@ -128,12 +126,12 @@ void display_update(display_t *d, const gas_monitor_t *m, const history_t *h,
            : SCREEN_SETTINGS;
     if (screen == d->screen && (uint32_t)(now - d->last_draw_ms) < DISPLAY_REFRESH_MS)
         return;
-    /* A page switch can leave a row the new page does not draw, so the buffer
-     * starts clean instead of relying on every page covering all eight. */
+    /* 切换页面会留下新页面不绘制的行，所以缓冲区先清空，而不是依赖每个
+     * 页面都覆盖全部八行。 */
     if (screen != d->screen) {
         ssd1306_clear(&d->oled);
-        /* The browse position is per visit: returning to the page should show
-         * the newest alarm, not wherever the last visit left off. */
+        /* 浏览位置按每次进入页面重置：再次进入该页应显示最新一条报警，
+         * 而不是上次离开时的位置。 */
         if (screen == SCREEN_HISTORY) d->history_index = 0u;
     }
     switch (screen) {

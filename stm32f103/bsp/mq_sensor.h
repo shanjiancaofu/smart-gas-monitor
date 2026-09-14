@@ -3,10 +3,10 @@
 #include "stm32f1xx_hal.h"
 #include <stdbool.h>
 
-/* Values are indexed MQ4, MQ7, MQ8 and must stay in gas_channel_t order. */
+/* 数组下标按 MQ4、MQ7、MQ8 排列，必须与 gas_channel_t 的顺序一致。 */
 #define MQ_SENSOR_CHANNELS 3u
-/* Conversions averaged per channel. The MQ outputs carry mains hum and the
- * heater switching noise, so one conversion is not a stable reading. */
+/* 每路平均的转换次数。MQ 输出上带着工频干扰和加热丝开关噪声，单次转换不是一个
+ * 稳定的读数。 */
 #define MQ_SENSOR_AVERAGES 8u
 
 typedef struct {
@@ -14,7 +14,7 @@ typedef struct {
 } mq_sensor_t;
 
 bool mq_sensor_init(mq_sensor_t *sensor, ADC_HandleTypeDef *adc);
-/* Reads all three channels, averaging MQ_SENSOR_AVERAGES conversions each. A
- * single failed conversion invalidates the whole set. */
+/* 读取全部三路，每路平均 MQ_SENSOR_AVERAGES 次转换。任意一次转换失败，整组
+ * 读数作废。 */
 bool mq_sensor_read(mq_sensor_t *sensor, uint16_t values[MQ_SENSOR_CHANNELS]);
 #endif

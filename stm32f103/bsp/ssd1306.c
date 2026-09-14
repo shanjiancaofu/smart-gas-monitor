@@ -3,18 +3,18 @@
 #include <stdio.h>
 #include <string.h>
 
-/* I2C control bytes: 0x00 prefixes a command stream, 0x40 pixel data. */
+/* I2C 控制字节：0x00 后面跟命令流，0x40 后面跟像素数据。 */
 #define SSD1306_CMD  0x00u
 #define SSD1306_DATA 0x40u
 
-/* Blocking transfers are bounded so a missing panel cannot hang the superloop. */
+/* 阻塞传输都有超时上限，面板不在线也不会把主循环卡死。 */
 #define SSD1306_TIMEOUT 100u
 
 #define SSD1306_CHAR_FIRST 32u
 #define SSD1306_CHAR_COUNT 95u
 
-/* ASCII 32..126, column-major, bit 0 is the top pixel of the page. Generated
- * from a monospace face; regenerate rather than hand-editing. */
+/* ASCII 32..126，列优先，bit 0 是 page 里最上面那个像素。由等宽字体生成；
+ * 要改就重新生成，不要手工编辑。 */
 static const uint8_t font6x8[SSD1306_CHAR_COUNT][6] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
     { 0x00, 0x00, 0x00, 0x2F, 0x00, 0x00 },
@@ -211,29 +211,29 @@ static const uint8_t font8x16[SSD1306_CHAR_COUNT][16] = {
     { 0x80, 0x01, 0x40, 0x00, 0x40, 0x00, 0xC0, 0x00, 0x80, 0x01, 0x00, 0x01, 0x00, 0x01, 0xC0, 0x00 },
 };
 
-/* Horizontal addressing, 128x64, charge pump on, not mirrored. */
+/* 水平寻址、128x64、打开电荷泵、整体不做镜像。 */
 static const uint8_t init_sequence[] = {
-    0xAE,        /* display off while configuring */
-    0x20, 0x00,  /* horizontal addressing mode */
-    0xB0,        /* start at page 0 */
-    0xC8,        /* COM scan direction remapped */
-    0x00, 0x10,  /* column 0 */
-    0x40,        /* display start line 0 */
-    0x81, 0x7F,  /* contrast */
-    0xA1,        /* segment remap */
-    0xA6,        /* normal, not inverted */
-    0xA8, 0x3F,  /* multiplex ratio 1/64 */
-    0xA4,        /* output follows RAM */
-    0xD3, 0x00,  /* no vertical offset */
-    0xD5, 0x80,  /* clock divide and oscillator */
-    0xD9, 0xF1,  /* pre-charge period */
-    0xDA, 0x12,  /* COM pins, 128x64 wiring */
-    0xDB, 0x40,  /* VCOMH deselect */
-    0x8D, 0x14,  /* charge pump on */
-    0xAF         /* display on */
+    0xAE,        /* 配置期间先关显示 */
+    0x20, 0x00,  /* 水平寻址模式 */
+    0xB0,        /* 从 page 0 开始 */
+    0xC8,        /* COM 扫描方向重映射 */
+    0x00, 0x10,  /* 列地址 0 */
+    0x40,        /* 显示起始行 0 */
+    0x81, 0x7F,  /* 对比度 */
+    0xA1,        /* 段重映射 */
+    0xA6,        /* 正常显示，不反白 */
+    0xA8, 0x3F,  /* 多路复用比 1/64 */
+    0xA4,        /* 输出跟随 RAM 内容 */
+    0xD3, 0x00,  /* 垂直偏移 0 */
+    0xD5, 0x80,  /* 时钟分频比与振荡器频率 */
+    0xD9, 0xF1,  /* 预充电周期 */
+    0xDA, 0x12,  /* COM 引脚配置，对应 128x64 接线 */
+    0xDB, 0x40,  /* VCOMH 去选电平 */
+    0x8D, 0x14,  /* 打开电荷泵 */
+    0xAF         /* 打开显示 */
 };
 
-/* HAL takes a non-const pointer but only reads from it. */
+/* HAL 接口要的是非 const 指针，但它只读不写。 */
 static bool command_list(ssd1306_t *oled, const uint8_t *commands, unsigned count)
 {
     return HAL_I2C_Mem_Write(oled->i2c, SSD1306_I2C_ADDR, SSD1306_CMD,
@@ -254,7 +254,7 @@ bool ssd1306_init(ssd1306_t *oled, I2C_HandleTypeDef *i2c)
 void ssd1306_clear(ssd1306_t *oled)
 {
     memset(oled->buffer, 0, sizeof(oled->buffer));
-    /* Everything changed, so mark every page. */
+    /* 全部内容都变了，所以每个 page 都要标记为待刷新。 */
     oled->dirty = 0xFFu;
 }
 
@@ -264,16 +264,16 @@ void ssd1306_flush(ssd1306_t *oled)
     for (page = 0; page < SSD1306_PAGES; ++page) {
         uint8_t setup[3];
         if (!(oled->dirty & (1u << page))) continue;
-        /* Position the write pointer, then stream the page in one transfer. */
+        /* 先把写指针定位好，再用一次传输把整页发出去。 */
         setup[0] = (uint8_t)(0xB0u | page);
-        setup[1] = 0x00;  /* column low nibble */
-        setup[2] = 0x10;  /* column high nibble */
+        setup[1] = 0x00;  /* 列地址低半字节 */
+        setup[2] = 0x10;  /* 列地址高半字节 */
         if (!command_list(oled, setup, sizeof(setup))) return;
         if (HAL_I2C_Mem_Write(oled->i2c, SSD1306_I2C_ADDR, SSD1306_DATA,
                               I2C_MEMADD_SIZE_8BIT,
                               &oled->buffer[page * SSD1306_WIDTH], SSD1306_WIDTH,
                               SSD1306_TIMEOUT) != HAL_OK) return;
-        /* Only clear the flag once the page really went out. */
+        /* 只有这一页真的发出去了，才清掉标志位。 */
         oled->dirty &= (uint8_t)~(1u << page);
     }
 }
@@ -306,7 +306,7 @@ bool ssd1306_text(ssd1306_t *oled, unsigned x, unsigned page, const char *text,
     unsigned length = (unsigned)strlen(text);
     unsigned i;
 
-    /* All or nothing: a half-drawn line is worse than none. */
+    /* 全有或全无：只画一半的行还不如一行都不画。 */
     if (x + length * width > SSD1306_WIDTH || page + pages > SSD1306_PAGES)
         return false;
     for (i = 0; i < length; ++i)
@@ -317,7 +317,7 @@ bool ssd1306_text(ssd1306_t *oled, unsigned x, unsigned page, const char *text,
 bool ssd1306_textf(ssd1306_t *oled, unsigned x, unsigned page, bool large,
                    const char *format, ...)
 {
-    /* Longest line that can fit is 21 small characters plus the terminator. */
+    /* 能放下的最长一行是 21 个小号字符，另加结尾的结束符。 */
     char line[24];
     va_list args;
     va_start(args, format);

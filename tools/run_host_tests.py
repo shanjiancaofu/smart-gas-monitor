@@ -28,7 +28,11 @@ with tempfile.TemporaryDirectory(prefix="gas-tests-") as folder:
         paths = [root / source for source in sources]
         exe = folder / f"{name}.exe"
         if pathlib.Path(args.cc).stem.lower() == "cl":
-            command = [args.cc, "/nologo", "/std:c11", "/W4", "/WX",
+            # /utf-8 because the sources carry Chinese comments and are UTF-8
+            # without a BOM, as the rest of the repository is. Without it MSVC
+            # decodes them as the local code page and C4819 becomes an error
+            # under /WX. The cross build needs nothing: gcc assumes UTF-8.
+            command = [args.cc, "/nologo", "/std:c11", "/W4", "/WX", "/utf-8",
                        f"/I{root / 'stm32f103/app'}", *map(str, paths), f"/Fe:{exe}"]
         else:
             command = [args.cc, "-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic",

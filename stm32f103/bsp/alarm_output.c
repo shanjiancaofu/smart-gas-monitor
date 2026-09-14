@@ -1,7 +1,7 @@
 #include "alarm_output.h"
 
-/* Pin names come from the CubeMX User Labels, so a pin move in the .ioc shows
- * up here as a compile error instead of a silently dead output. */
+/* 引脚名取自 CubeMX 的 User Labels，在 .ioc 里挪动引脚会在这里变成编译错误，
+ * 而不是一个悄悄失效的输出。 */
 static bool buzzer_alarm;
 static uint32_t buzzer_start_tick;
 
@@ -31,7 +31,7 @@ void alarm_output_apply(bool valve_open, bool green, bool yellow, bool alarm,
                         uint32_t tick)
 {
     bool buzzer_on;
-    /* A fresh alarm restarts the window; the alarm staying on does not. */
+    /* 新的一次报警会重新开始计时窗口；报警持续并不会。 */
     if (alarm && !buzzer_alarm) buzzer_start_tick = tick;
     buzzer_alarm = alarm;
     buzzer_on = alarm && (uint32_t)(tick - buzzer_start_tick) < BUZZER_ALARM_TICKS;

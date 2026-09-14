@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Channel order matches mq_sensor_read(); app.c asserts the two stay equal. */
+/* 通道顺序与 mq_sensor_read() 一致；app.c 用断言保证两者相同。 */
 typedef enum {
     GAS_MQ4 = 0,
     GAS_MQ7,
@@ -12,37 +12,35 @@ typedef enum {
     GAS_COUNT
 } gas_channel_t;
 
-/* Selector reached by pressing KEY1 repeatedly. The first three line up with
- * the channel indices so alarm[selected - 1] picks the right threshold, and
- * gas_monitor_key() relies on that range to bound the index. */
+/* 反复按 KEY1 到达的选中项。前三项与通道编号对齐，使 alarm[selected - 1]
+ * 取到正确的阈值，gas_monitor_key() 依赖这个范围来约束下标。 */
 typedef enum {
     GAS_SEL_MAIN = 0,
     GAS_SEL_MQ4,
     GAS_SEL_MQ7,
     GAS_SEL_MQ8,
     GAS_SEL_PERIOD,
-    /* Browse-only page. Nothing here is adjustable, so KEY2/KEY3 are left for
-     * the caller to interpret as history scrolling. */
+    /* 只供浏览的界面。这里没有可调项，KEY2/KEY3 留给调用者解释为翻阅历史。 */
     GAS_SEL_HISTORY,
     GAS_SEL_COUNT
 } gas_setting_t;
 
-/* Bounds on what the settings decoder accepts from EEPROM. */
+/* 设置解码器从 EEPROM 读入时所接受的取值范围。 */
 #define GAS_THRESHOLD_MIN 200u
 #define GAS_THRESHOLD_MAX 4000u
 #define GAS_THRESHOLD_STEP 50u
-/* Matches the lowest entry in the key-selectable period list: a minimum that
- * no keypress can reach would only ever be honoured when loaded from EEPROM. */
+/* 与按键可选的周期列表中的最小值一致：按键永远到不了的最小值，只会在从
+ * EEPROM 载入时才被认可。 */
 #define GAS_PERIOD_MIN_MS 100u
 #define GAS_PERIOD_MAX_MS 5000u
-/* The TIM2 tick the composition root schedules samples on. A period that is not
- * a whole number of ticks would round to a different one than it names, so such
- * a value is refused rather than quietly honoured as its rounded neighbour. */
+/* 合成根用来调度采样的 TIM2 节拍。不是整节拍数的周期会被调度成与它声称的
+ * 值不同的另一种周期，所以这样的值直接拒绝，而不是悄悄按四舍五入后的相邻
+ * 值执行。 */
 #define GAS_TICK_MS 10u
 
 #define GAS_WARNING_PERCENT 80u
-/* Recovery below the warning band. Proportional so that a threshold near the
- * bottom of the range still leaves a reachable safe region. */
+/* 恢复到预警带以下。按比例取值，使接近范围下端的阈值也仍留有能达到的
+ * 安全区。 */
 #define GAS_SAFE_PERCENT 70u
 
 #define GAS_SAFE_HOLD_MS 3000u
@@ -69,33 +67,32 @@ typedef struct {
     bool sample_valid, sample_attempted, latched, safe_timing, reset_ready, dirty;
 } gas_monitor_t;
 
-/* The display and the serial protocol both name channels and masks, so the
- * spelling lives here once rather than in each of them. */
+/* 显示和串口协议都要给出通道名和掩码名，所以这套拼写只在这里放一份，
+ * 而不是各写一份。 */
 const char *gas_channel_name(gas_channel_t channel);
-/* Short enough for the panel's sixteen-character line. */
+/* 短到能放进面板那 16 个字符的一行。 */
 const char *gas_state_name(gas_state_t state);
-/* "MQ4" / "MQ4+MQ7" / "MQ4+MQ7+MQ8", or "NONE" for an empty mask. */
+/* "MQ4" / "MQ4+MQ7" / "MQ4+MQ7+MQ8"，空掩码时为 "NONE"。 */
 void gas_alarm_mask_name(uint8_t mask, char *out, size_t size);
 void gas_config_defaults(gas_config_t *config);
 bool gas_config_valid(const gas_config_t *config);
 uint16_t gas_warning_threshold(uint16_t alarm);
 uint16_t gas_safe_threshold(uint16_t alarm);
-/* A sampler that has fallen this far behind its own period is stalled. */
+/* 采样器落后自己的周期到这个程度，就算停摆。 */
 uint32_t gas_sample_timeout_ms(const gas_monitor_t *m);
 void gas_monitor_init(gas_monitor_t *m, const gas_config_t *config, uint32_t now);
-/* Pass only complete fresh three-channel samples. ADC failure invalidates all. */
+/* 只传入完整且新鲜的三通道样本。ADC 失败会使全部数据失效。 */
 void gas_monitor_sample(gas_monitor_t *m, const uint16_t adc[GAS_COUNT], bool valid, uint32_t now);
 void gas_monitor_tick(gas_monitor_t *m, uint32_t now);
-/* Debounced press edge, keys 1..4. No remote valve-open API. */
+/* 消抖后的按下沿，按键 1..4。没有远程开阀的接口。 */
 void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now);
-/* Configuration from outside the key path, which is only the serial protocol.
- * Both refuse a value the settings decoder would refuse, so a remote write can
- * never produce a configuration that will not survive a power cycle. */
+/* 来自按键路径之外的配置修改，目前只有串口协议。两者都拒绝设置解码器会
+ * 拒绝的值，所以远程写入不可能造出一份开机能存但读不回来的配置。 */
 bool gas_monitor_set_threshold(gas_monitor_t *m, gas_channel_t channel,
                                uint16_t value, uint32_t now);
 bool gas_monitor_set_period(gas_monitor_t *m, uint16_t ms, uint32_t now);
-/* Closes the valve and latches it. Only KEY4 clears the latch, so this cannot
- * be undone remotely: there is deliberately no remote open. */
+/* 关闭阀门并锁存。只有 KEY4 能清除锁存，所以这个动作无法远程撤销：故意
+ * 不提供远程开阀。 */
 void gas_monitor_close_valve(gas_monitor_t *m, uint32_t now);
 bool gas_monitor_valve_open(const gas_monitor_t *m);
 bool gas_monitor_save_due(const gas_monitor_t *m, uint32_t now);

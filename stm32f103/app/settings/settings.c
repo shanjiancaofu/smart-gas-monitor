@@ -1,10 +1,10 @@
 #include "settings/settings.h"
 #include <string.h>
 
-/* Two 16-byte slots at 0x00 and 0x10. Last byte is commit marker. */
+/* 两个 16 字节槽，位于 0x00 和 0x10。最后一个字节是提交标志。 */
 #define SETTINGS_SLOT_SIZE 16u
 #define SETTINGS_MAGIC 0xa5u
-/* Version 4 stores lockout at byte 12 and protects it with the record CRC. */
+/* 版本 4 把 lockout 放在第 12 字节，并纳入记录 CRC 保护。 */
 #define SETTINGS_VERSION 4u
 #define SETTINGS_COMMIT 0x5au
 
@@ -69,8 +69,8 @@ bool settings_save(const settings_io_t *io, const gas_config_t *c)
     put16(record + 10, c->sample_period_ms);
     record[12] = c->lockout ? 1u : 0u;
     put16(record + 13, crc16(record, 13)); record[15] = SETTINGS_COMMIT;
-    /* Clear the commit marker first so an interrupted write leaves the slot
-     * invalid rather than half-updated. */
+    /* 先清除提交标志，这样写入被打断时，槽位会处于无效状态，而不是更新到
+     * 一半。 */
     if (!io->write(io->context, (uint16_t)(address + SETTINGS_SLOT_SIZE - 1u), &marker, 1) ||
         !io->write(io->context, address, record, SETTINGS_SLOT_SIZE - 1u) ||
         !io->write(io->context, (uint16_t)(address + SETTINGS_SLOT_SIZE - 1u),
