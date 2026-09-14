@@ -5,7 +5,7 @@
 #define SETTINGS_SLOT_SIZE 16u
 #define SETTINGS_MAGIC 0xa5u
 /* Bumped when the payload layout changes: version 2 added sample_period_ms. */
-#define SETTINGS_VERSION 2u
+#define SETTINGS_VERSION 3u
 #define SETTINGS_COMMIT 0x5au
 
 static uint16_t crc16(const uint8_t *p, unsigned n)
@@ -28,6 +28,7 @@ static bool decode(const uint8_t *b, gas_config_t *c)
         get16(b + 12) != crc16(b, 12)) return false;
     for (i = 0; i < GAS_COUNT; ++i) c->alarm[i] = get16(b + 4 + i * 2);
     c->sample_period_ms = get16(b + 10);
+    c->lockout = b[14] != 0u;
     return gas_config_valid(c);
 }
 static int latest(uint8_t b[2][SETTINGS_SLOT_SIZE], bool valid[2])
@@ -66,6 +67,7 @@ bool settings_save(const settings_io_t *io, const gas_config_t *c)
     record[0] = SETTINGS_MAGIC; record[1] = SETTINGS_VERSION; put16(record + 2, sequence);
     for (i = 0; i < GAS_COUNT; ++i) put16(record + 4 + i * 2, c->alarm[i]);
     put16(record + 10, c->sample_period_ms);
+    record[14] = c->lockout ? 1u : 0u;
     put16(record + 12, crc16(record, 12)); record[15] = SETTINGS_COMMIT;
     /* Clear the commit marker first so an interrupted write leaves the slot
      * invalid rather than half-updated. */

@@ -40,6 +40,7 @@ void gas_config_defaults(gas_config_t *c)
     c->alarm[GAS_MQ7] = 2000;
     c->alarm[GAS_MQ8] = 2400;
     c->sample_period_ms = 100;
+    c->lockout = false;
 }
 bool gas_config_valid(const gas_config_t *c)
 {
@@ -124,7 +125,7 @@ void gas_monitor_init(gas_monitor_t *m, const gas_config_t *c, uint32_t now)
     m->state = GAS_WARMUP;
     /* A healthy power-up opens the valve once warm-up confirms safety. Only an
      * alarm or a sampler fault latches it shut for manual release. */
-    m->latched = false;
+    m->latched = m->config.lockout;
 }
 void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
 {
@@ -148,7 +149,8 @@ void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
     }
     if (alarm != 0) {
         if (m->alarm_mask == 0) ++m->alarm_count;
-        m->alarm_mask = alarm; m->latched = true;
+        m->alarm_mask = alarm; m->latched = true; m->config.lockout = true;
+        m->dirty = true;
         m->state = GAS_ALARM; m->safe_timing = false;
         return;
     }
@@ -197,7 +199,7 @@ void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now)
         }
         if (changed) config_changed(m, now);
     } else if (key == 4 && m->reset_ready && m->state == GAS_SAFE_WAIT) {
-        m->latched = false;
+        m->latched = false; m->config.lockout = false; m->dirty = true;
         gas_monitor_tick(m, now);
     }
 }
@@ -228,7 +230,7 @@ bool gas_monitor_set_period(gas_monitor_t *m, uint16_t ms, uint32_t now)
 
 void gas_monitor_close_valve(gas_monitor_t *m, uint32_t now)
 {
-    m->latched = true;
+    m->latched = true; m->config.lockout = true; m->dirty = true;
     gas_monitor_tick(m, now);
 }
 bool gas_monitor_valve_open(const gas_monitor_t *m)

@@ -14,9 +14,9 @@
 | 中断向量表指向 | PASS：TIM2、USART1、USART2、EXTI15_10 四个槽位 |
 | 实物 / Proteus | NOT VERIFIED |
 
-最终 ARM 构建：text = 27376 bytes，data = 92 bytes，bss = 4140 bytes。BIN 为 27468 bytes，占 Flash 64 KB 的 42%，RAM 20 KB 的 20%。
+最终 ARM 构建：text = 27504 bytes，data = 92 bytes，bss = 4148 bytes。BIN 为 27596 bytes，占 Flash 64 KB 的 42%，RAM 20 KB 的 20%。本轮修复 OLED 行缓冲、TIM2 启动失败处理、历史写入失败状态传播，并将蜂鸣器 5 秒窗口改为 TIM2 的 500 个 10 ms tick。
 
-BIN SHA256：`7f7e49371386acb9c0e760575d2455f5d422d5d4d764ddb5a7ce636f3a7d5e83`。
+BIN SHA256：`d61ef6a29bf48cec8084abd206c2e22de17125e5c4ddb1f846a5613efee13d84`。
 
 ### 中断向量表
 

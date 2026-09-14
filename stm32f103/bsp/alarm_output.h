@@ -15,7 +15,7 @@
 
 /* How long the buzzer sounds from the moment an alarm starts. It is fixed
  * rather than configurable: its job is to be noticed, not to be tuned. */
-#define BUZZER_ALARM_MS 5000u
+#define BUZZER_ALARM_TICKS 500u /* TIM2: 10 ms per tick */
 
 /* Drives the relay closed and quiets every indicator. */
 void alarm_output_init(void);
@@ -25,8 +25,8 @@ void alarm_output_init(void);
  * floating, and only a hardware pulldown holds it in the safe state. */
 void alarm_output_force_safe(void);
 /* Applies the valve decision before the indicators or any slow I/O. The buzzer
- * is driven for BUZZER_ALARM_MS after each fresh alarm and then falls silent,
+ * is driven for BUZZER_ALARM_TICKS after each fresh alarm and then falls silent,
  * so a latched fault does not sound until someone acknowledges it. */
 void alarm_output_apply(bool valve_open, bool green, bool yellow, bool alarm,
-                        uint32_t now);
+                        uint32_t tick);
 #endif

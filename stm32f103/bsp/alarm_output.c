@@ -3,7 +3,7 @@
 /* Pin names come from the CubeMX User Labels, so a pin move in the .ioc shows
  * up here as a compile error instead of a silently dead output. */
 static bool buzzer_alarm;
-static uint32_t buzzer_start_ms;
+static uint32_t buzzer_start_tick;
 
 static GPIO_PinState opposite(GPIO_PinState level)
 {
@@ -19,7 +19,7 @@ void alarm_output_force_safe(void)
 void alarm_output_init(void)
 {
     buzzer_alarm = false;
-    buzzer_start_ms = 0;
+    buzzer_start_tick = 0;
     alarm_output_force_safe();
     HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, opposite(BUZZER_ON_LEVEL));
     HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
@@ -28,13 +28,13 @@ void alarm_output_init(void)
 }
 
 void alarm_output_apply(bool valve_open, bool green, bool yellow, bool alarm,
-                        uint32_t now)
+                        uint32_t tick)
 {
     bool buzzer_on;
     /* A fresh alarm restarts the window; the alarm staying on does not. */
-    if (alarm && !buzzer_alarm) buzzer_start_ms = now;
+    if (alarm && !buzzer_alarm) buzzer_start_tick = tick;
     buzzer_alarm = alarm;
-    buzzer_on = alarm && (uint32_t)(now - buzzer_start_ms) < BUZZER_ALARM_MS;
+    buzzer_on = alarm && (uint32_t)(tick - buzzer_start_tick) < BUZZER_ALARM_TICKS;
     HAL_GPIO_WritePin(RELAY_GPIO_Port, RELAY_Pin,
                       valve_open ? RELAY_OPEN_LEVEL : opposite(RELAY_OPEN_LEVEL));
     HAL_GPIO_WritePin(VALVE_LED_GPIO_Port, VALVE_LED_Pin,

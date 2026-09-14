@@ -7,6 +7,8 @@
  * 128 / 8 and 126 / 6, the last two pixels of a small line being left alone. */
 #define LARGE_COLS 16u
 #define SMALL_COLS 21u
+_Static_assert(SMALL_COLS >= LARGE_COLS,
+               "display row buffer is too small");
 /* Scratch for one formatted line before it is padded down to a panel row. */
 #define LINE_MAX 48u
 
@@ -18,7 +20,7 @@
  * overwritten rather than left behind it. */
 static void put(display_t *d, unsigned page, bool large, const char *text)
 {
-    char row[LARGE_COLS + 1u];
+    char row[SMALL_COLS + 1u];
     unsigned cols = large ? LARGE_COLS : SMALL_COLS;
     size_t n = strlen(text);
     if (n > cols) n = cols;

@@ -33,7 +33,7 @@ static void test_store(void)
     int cut;
     memset(&f, 0xff, sizeof(f)); f.budget = -1;
     gas_config_defaults(&a);
-    b = a; b.alarm[GAS_MQ7] = 2500; b.sample_period_ms = 500;
+    b = a; b.alarm[GAS_MQ7] = 2500; b.sample_period_ms = 500; b.lockout = true;
     assert(!settings_load(&io, &loaded));
     assert(settings_save(&io, &a));
     baseline = f;
@@ -47,7 +47,7 @@ static void test_store(void)
     f = baseline; f.budget = -1;
     assert(settings_save(&io, &b));
     assert(settings_load(&io, &loaded));
-    assert(loaded.alarm[GAS_MQ7] == 2500 && loaded.sample_period_ms == 500);
+    assert(loaded.alarm[GAS_MQ7] == 2500 && loaded.sample_period_ms == 500 && loaded.lockout);
     /* A corrupted newer slot must not take the good one down with it. */
     f.data[20] ^= 1;
     assert(settings_load(&io, &loaded));

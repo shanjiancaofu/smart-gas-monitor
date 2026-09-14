@@ -53,6 +53,7 @@ typedef enum {
 typedef struct {
     uint16_t alarm[GAS_COUNT];
     uint16_t sample_period_ms;
+    bool lockout;
 } gas_config_t;
 
 typedef enum { GAS_WARMUP, GAS_NORMAL, GAS_WARNING, GAS_ALARM,

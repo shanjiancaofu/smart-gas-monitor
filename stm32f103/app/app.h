@@ -31,7 +31,7 @@ typedef struct {
 
 /* The EEPROM and the panel are on separate I2C buses, so they are passed
  * separately rather than as one "i2c" handle. */
-void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
+bool app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
               I2C_HandleTypeDef *oled, TIM_HandleTypeDef *tick,
               UART_HandleTypeDef *usb, UART_HandleTypeDef *radio);
 /* One pass of the bare-metal superloop. */

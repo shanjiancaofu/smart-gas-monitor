@@ -19,11 +19,11 @@ void app_tick_isr(void)
     ++app_ticks;
 }
 
-static void apply_outputs(const gas_monitor_t *m, uint32_t now)
+static void apply_outputs(const gas_monitor_t *m, uint32_t tick)
 {
     bool alarm = m->state == GAS_ALARM || m->state == GAS_FAULT;
     alarm_output_apply(gas_monitor_valve_open(m), m->state == GAS_NORMAL,
-                       !alarm && m->state != GAS_NORMAL, alarm, now);
+                       !alarm && m->state != GAS_NORMAL, alarm, tick);
 }
 
 /* Sends one line of the pending response to every link, and only when all of
@@ -55,7 +55,7 @@ static void poll_links(app_t *app, uint32_t now)
     pump_replies(app);
 }
 
-void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
+bool app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
               I2C_HandleTypeDef *oled, TIM_HandleTypeDef *tick,
               UART_HandleTypeDef *usb, UART_HandleTypeDef *radio)
 {
@@ -66,7 +66,7 @@ void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
     alarm_output_init();
     /* The sample clock runs from here on; sampling itself starts further down,
      * once the monitor exists. */
-    HAL_TIM_Base_Start_IT(tick);
+    if (HAL_TIM_Base_Start_IT(tick) != HAL_OK) return false;
     app->last_tick = app_ticks;
     key_init(&app->keys);
     at24c02_init(&app->eeprom, eeprom);
@@ -86,7 +86,8 @@ void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
     serial_init(&app->link_usb, usb);
     serial_init(&app->link_radio, radio);
     app->last_state = app->monitor.state;
-    apply_outputs(&app->monitor, now);
+    apply_outputs(&app->monitor, app_ticks);
+    return true;
 }
 
 void app_run(app_t *app)
@@ -123,7 +124,7 @@ void app_run(app_t *app)
             display_history_key(&app->display, &app->history, key)) continue;
         gas_monitor_key(&app->monitor, key, now);
     }
-    apply_outputs(&app->monitor, now);
+    apply_outputs(&app->monitor, app_ticks);
     /* One record per alarm episode. The state machine is the authority on when
      * an alarm starts, and the previous state is what makes a persisting alarm
      * write once rather than on every sample. */
@@ -133,7 +134,9 @@ void app_run(app_t *app)
         entry.uptime_s = now / 1000u;
         for (i = 0; i < GAS_COUNT; ++i) entry.adc[i] = app->monitor.adc[i];
         entry.alarm_mask = app->monitor.alarm_mask;
-        (void)history_append(&app->history, &entry);
+        if (!history_append(&app->history, &entry)) app->storage_ok = false;
+        if (!settings_save(&app->store, &app->monitor.config)) app->storage_ok = false;
+        else app->monitor.dirty = false;
         /* The page is showing a record list that just changed underneath it. */
         if (app->monitor.selected == GAS_SEL_HISTORY) app->display.history_index = 0u;
         /* Told without being asked, so a phone watching the radio link does not
@@ -151,6 +154,6 @@ void app_run(app_t *app)
         /* Re-evaluate freshness after bounded, blocking EEPROM operations. */
         now = HAL_GetTick();
         gas_monitor_tick(&app->monitor, now);
-        apply_outputs(&app->monitor, now);
+        apply_outputs(&app->monitor, app_ticks);
     }
 }
