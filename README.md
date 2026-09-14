@@ -25,7 +25,7 @@ smart-gas-monitor/
 └── LICENSE
 ```
 
-已用 STM32CubeMX 生成 STM32F103C8T6 HAL 工程，配置为 `stm32f103/cubemx/smart_gas_monitor.ioc`。固件已实现三路 ADC 采样（每路 8 次平均）、可跨掉电保持的安全锁存与 KEY4 现场恢复、按键阈值与采样周期调整、AT24C02 参数保存、OLED 三界面显示、EEPROM 报警历史记录，以及 USART1/HC-05 双路共用的文本协议。按键走 PB12～PB15 的 EXTI 下降沿，采样节拍由 TIM2 的 10 ms 中断驱动，两路串口均为中断收发。软件部分已完成，尚未进行实物或 Proteus 验证。
+已用 STM32CubeMX 生成 STM32F103C8T6 HAL 工程，配置为 `stm32f103/cubemx/smart_gas_monitor.ioc`。固件已实现三路 ADC 采样（每路 8 次平均）、可跨掉电保持的安全锁存与 KEY4 现场恢复、按键阈值、采样周期与报警蜂鸣器时长的调整、AT24C02 参数保存、OLED 三界面显示、EEPROM 报警历史记录，以及 USART1/HC-05 双路共用的文本协议。按键走 PB12～PB15 的 EXTI 下降沿，采样节拍由 TIM2 的 10 ms 中断驱动，两路串口均为中断收发。软件部分已完成，尚未进行实物或 Proteus 验证。
 
 硬件空目录通过 `.gitkeep` 纳入 Git 管理。固件分层如下：
 
@@ -51,7 +51,7 @@ stm32f103/
 
 ## 串口协议
 
-USART1（115200，USB-TTL）和 USART2（9600，HC-05）走同一套文本协议，行以 `\r\n` 结束，命令大小写不敏感。支持 `STATUS?`、`CONFIG?`、`HISTORY?`、`SET MQ4|MQ7|MQ8 <值>`、`SET PERIOD <毫秒>` 和 `VALVE CLOSE`；报警开始时两路都会主动推一行 `ALARM`。
+USART1（115200，USB-TTL）和 USART2（9600，HC-05）走同一套文本协议，行以 `\r\n` 结束，命令大小写不敏感。支持 `STATUS?`、`CONFIG?`、`HISTORY?`、`SET MQ4|MQ7|MQ8 <值>`、`SET PERIOD <毫秒>`、`SET BUZZER <OFF|ALWAYS|1-60>` 和 `VALVE CLOSE`；报警开始时两路都会主动推一行 `ALARM`。
 
 没有远程开阀：`VALVE OPEN` 一律回 `ERR ONLY CLOSE`，解除阀门锁存的唯一途径是面板上的 KEY4。ALARM、FAULT 和远程 CLOSE 都会立即持久化 lockout，断电重启后仍保持关阀。命令与应答格式见[固件说明](docs/firmware.md)。
 
