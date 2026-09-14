@@ -25,24 +25,35 @@ smart-gas-monitor/
 └── LICENSE
 ```
 
-已用 STM32CubeMX 生成 STM32F103C8T6 HAL 工程，配置为 `stm32f103/cubemx/smart_gas_monitor.ioc`。已实现三路采样、报警锁存、KEY4 安全恢复、按键阈值与采样周期调整及 AT24C02 参数保存；按键走 PB12～PB15 的 EXTI 下降沿，采样节拍由 TIM2 的 10 ms 中断驱动。OLED 显示、串口命令和报警历史持久化尚未实现。
+已用 STM32CubeMX 生成 STM32F103C8T6 HAL 工程，配置为 `stm32f103/cubemx/smart_gas_monitor.ioc`。固件已实现三路 ADC 采样（每路 8 次平均）、报警锁存与 KEY4 安全恢复、按键阈值与采样周期调整、AT24C02 参数保存、OLED 三界面显示、EEPROM 报警历史记录，以及 USART1/HC-05 双路共用的文本协议。按键走 PB12～PB15 的 EXTI 下降沿，采样节拍由 TIM2 的 10 ms 中断驱动，两路串口均为中断收发。软件部分已完成，尚未进行实物或 Proteus 验证。
 
 硬件空目录通过 `.gitkeep` 纳入 Git 管理。固件分层如下：
 
 ```text
 stm32f103/
 ├── bsp/                    # 只访问 HAL，不依赖 app
-│   ├── mq_sensor.*         # PA0/PA1/PA4 三路 ADC 采集
+│   ├── mq_sensor.*         # PA0/PA1/PA4 三路 ADC 采集，每路 8 次平均
 │   ├── key.*               # PB12～PB15 的 EXTI 边沿锁存、扫描与消抖
 │   ├── alarm_output.*      # 继电器、LED、蜂鸣器
-│   └── at24c02.*           # I2C2 分页读写
+│   ├── at24c02.*           # I2C2 分页读写
+│   ├── ssd1306.*           # I2C1 面板，页缓冲与字模
+│   └── serial.*            # 两路 UART 的中断收发行缓冲
 └── app/
     ├── app.*               # 组合层：装配各模块与主循环调度，依赖 BSP/HAL
     ├── gas/                # 阈值、监测状态机、报警锁存和人工恢复
-    └── settings/           # 参数序列化、CRC、双副本保存
+    ├── settings/           # 参数序列化、CRC、双副本保存
+    ├── history/            # EEPROM 报警记录环形存储
+    ├── display/            # 实时、参数、历史三个界面
+    └── communication/      # 文本协议解析与逐行应答
 ```
 
-`cubemx/Core/`、`cubemx/Drivers/` 由 CubeMX 生成。BSP 访问 HAL；`app/gas` 与 `app/settings` 只依赖标准 C，可在主机上测试；`app.c` 是唯一把两者装配起来的地方，它持有 BSP 对象并调用 `HAL_GetTick()`，因此自身依赖 HAL。根目录 `tests/` 保存主机 C 测试。
+`cubemx/Core/`、`cubemx/Drivers/` 由 CubeMX 生成。BSP 访问 HAL；`app/gas`、`app/settings`、`app/history` 与 `app/communication` 只依赖标准 C，可在主机上测试；`app.c` 是唯一把两者装配起来的地方，它持有 BSP 对象并调用 `HAL_GetTick()`，因此自身依赖 HAL。根目录 `tests/` 保存主机 C 测试。
+
+## 串口协议
+
+USART1（115200，USB-TTL）和 USART2（9600，HC-05）走同一套文本协议，行以 `\r\n` 结束，命令大小写不敏感。支持 `STATUS?`、`CONFIG?`、`HISTORY?`、`SET MQ4|MQ7|MQ8 <值>`、`SET PERIOD <毫秒>` 和 `VALVE CLOSE`；报警开始时两路都会主动推一行 `ALARM`。
+
+没有远程开阀：`VALVE OPEN` 一律回 `ERR ONLY CLOSE`，解除阀门锁存的唯一途径是面板上的 KEY4。命令与应答格式见[固件说明](docs/firmware.md)。
 
 ## 项目文档
 
@@ -72,4 +83,4 @@ python tools/run_host_tests.py --cc gcc
 
 固件输出在 `stm32f103/cubemx/build/`。`cubemx/GNUmakefile` 加入外层 app/bsp 源码，CubeMX 可重新生成其管理的 `Makefile`。主机测试脚本自动编译并运行 `tests/` 下的全部测试。
 
-当前默认阈值为 ADC 原始计数演示参数，未标定为 ppm。已完成软件构建和主机测试，未进行实物或 Proteus 验证。
+当前默认阈值为 ADC 原始计数演示参数，未标定为 ppm。软件部分已完成，四个主机测试套件全部通过，未进行实物或 Proteus 验证。

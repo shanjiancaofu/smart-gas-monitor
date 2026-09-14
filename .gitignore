@@ -71,6 +71,8 @@ Listings/
 .vs/
 .DS_Store
 Thumbs.db
+# A `>nul` redirect run from a POSIX shell creates a real file by that name.
+nul
 
 # Office temporary lock files
 ~$*

@@ -2,7 +2,49 @@
 
 日期：2026-09-14。
 
-## 当前 HEAD（按键 EXTI 与 TIM2 采样节拍）
+## 当前 HEAD（OLED、EEPROM 报警记录与双串口协议）
+
+先 `make clean` 再从无缓存状态完整构建。三个功能提交（`fe153fd`、`4d8c404`、`8fdcf1f`）合并验证一次。
+
+| 检查 | 结果 |
+| --- | --- |
+| CubeMX 重新生成 | PASS：main.c 的应用初始化/轮询、异常处理关阀、TIM2 中断钩子等 USER CODE 均保留；GPIO User Labels 生成 `*_Pin` / `*_GPIO_Port` 宏 |
+| ARM 编译和链接 | PASS：GNU Arm 14.3.rel1，Cortex-M3，零 warning/error |
+| 主机 C 单元测试 | PASS：MSVC 19.38，C11，/W4 /WX，`test_gas_monitor`、`test_settings`、`test_history`、`test_protocol` 四个全部通过 |
+| 中断向量表指向 | PASS：TIM2、USART1、USART2、EXTI15_10 四个槽位 |
+| 实物 / Proteus | NOT VERIFIED |
+
+最终 ARM 构建：text = 27376 bytes，data = 92 bytes，bss = 4140 bytes。BIN 为 27468 bytes，占 Flash 64 KB 的 42%，RAM 20 KB 的 20%。
+
+BIN SHA256：`7f7e49371386acb9c0e760575d2455f5d422d5d4d764ddb5a7ce636f3a7d5e83`。
+
+### 中断向量表
+
+四个槽位的值与符号相符（向量表项最低位为 Thumb 标志，故比符号地址大 1）：
+
+| 槽位偏移 | 偏移地址 | 内容 | 符号 |
+| --- | --- | --- | --- |
+| 0xB0（IRQ 28，TIM2） | 0x080000b0 | 0x080006c1 | `TIM2_IRQHandler`（0x080006c0） |
+| 0xD4（IRQ 37，USART1） | 0x080000d4 | 0x080006d5 | `USART1_IRQHandler`（0x080006d4） |
+| 0xD8（IRQ 38，USART2） | 0x080000d8 | 0x080006e5 | `USART2_IRQHandler`（0x080006e4） |
+| 0xE0（IRQ 40，EXTI15_10） | 0x080000e0 | 0x080006f5 | `EXTI15_10_IRQHandler`（0x080006f4） |
+
+`app_tick_isr()`（0x0800353c）由 `TIM2_IRQHandler` 的 `USER CODE BEGIN TIM2_IRQn 1` 段调用。`MX_TIM2_Init()` 中 `Prescaler = 71`、`Period = 9999`，即 72 MHz / 72 / 10000 = 10 ms。
+
+### USART NVIC
+
+`.ioc` 中新增 `NVIC.USART1_IRQn` 与 `NVIC.USART2_IRQn`，抢占优先级 2，同样是第 7、8 字段必须为 `true:true`——与 EXTI 那次踩到的是同一条规则。按产物核对：`usart.c:118` 与 `usart.c:148` 分别生成 `HAL_NVIC_EnableIRQ(USART1_IRQn)` 和 `HAL_NVIC_EnableIRQ(USART2_IRQn)`。
+
+### 本轮的设计核对
+
+这几处不是「编译通过」能证明的，因此单独记录判断依据：
+
+- **阻塞发送会把自己打成 FAULT。** 14 条历史记录约 750 字节，HC-05 在 9600 baud 下需要 780 ms；采样器的故障超时是 3 个采样周期，100 ms 周期下只有 300 ms。若在 `HISTORY?` 的应答里就地阻塞发送，「查询历史」这个动作本身就会触发采样超时、进入 FAULT 并关阀。核对方式：发送改为中断驱动，且 `pump_replies()` 只在两路都空闲时取一行，因此单次主循环的最坏占用与一次转换同量级，而非与整段应答同量级。
+- **远程写入不得造出读不回来的配置。** `SET` 走 `gas_monitor_set_threshold()` / `gas_monitor_set_period()`，两者都对整份候选配置调用 `gas_config_valid()`。核对方式见 `tests/test_protocol.c`：`SET PERIOD 255` 被拒（不是 10 ms 的整数倍），而 `SET PERIOD 250` 被接受（是整数倍且在范围内）——按键步进选不到 250，但合法值不因按键选不到就该被拒绝。
+- **没有远程开阀。** `VALVE OPEN` 恒回 `ERR ONLY CLOSE`；`VALVE CLOSE` 之后仍须三路低于危险阈值 70% 并持续 3 秒，再由 KEY4 开阀。核对方式见 `tests/test_protocol.c` 的 `test_valve()`，其中先远程关阀、再走完整的低浓度安全窗口，最后确认只有 KEY4 能开阀。
+- **报警记录只写一次。** 「首次进入 ALARM」由 `app_run()` 里的状态边沿判断决定，与串口报警通知共用同一处边沿。核对方式：该判断在 `app_run()` 中只出现一次，且 `last_state` 在每个主循环末尾无条件更新。
+
+## 上一次验证（按键 EXTI 与 TIM2 采样节拍）
 
 按键改为 EXTI 下降沿中断，采样节拍改由 TIM2 的 10 ms 更新中断驱动。
 
@@ -86,6 +128,10 @@ BIN SHA256：`e446a48b1489a36a74975995291668a140d0f377a3bd3310f6a56440721f711d`�
 
 存储测试覆盖：空 EEPROM、CRC 损坏回退、版本不匹配回退、越界值拒绝，以及双副本写入各字节处中断后保留旧配置。
 
+历史测试覆盖：区域边界（0x20～0xFF 恰好 14 条）、空存储、写入后按倒序读回、重启后顺序延续、环形回绕覆盖最旧记录、写入中断留下的残槽被判为无效、CRC 损坏的记录被丢弃。
+
+协议测试覆盖：状态/配置/历史查询的逐字节应答、大小写不敏感、空行不回话、远程设置的名称/数值/参数个数/范围四类拒绝、`VALVE CLOSE` 后仍须 KEY4、`VALVE OPEN` 恒回 `ERR ONLY CLOSE`、历史倒序与序号、报警主动通知只发一次、超长行不越界且之后协议仍可用。
+
 两个关键回归用例都在旧实现上确认失败、在当前实现上通过：
 
 - **低阈值恢复**：把阈值降到下限 200 后，旧实现要求读数低于 60 才允许恢复，实际不可能满足，阀门会被永久锁死。
@@ -93,4 +139,6 @@ BIN SHA256：`e446a48b1489a36a74975995291668a140d0f377a3bd3310f6a56440721f711d`�
 
 ## 待验证
 
-上述软件结果不代表传感器标定或硬件功能通过。待验证：8 MHz 晶振、ADC 电压和分压接线、MQ 模块预热/响应、继电器接点与有效电平、复位期间 PA8 的默认状态、EEPROM 地址/写周期、按键实物消抖、EXTI 下降沿在实物按键抖动下的触发次数、TIM2 10 ms 节拍的实测周期与长时间漂移。OLED、双串口应用协议和报警历史持久化尚未实现。
+上述软件结果不代表传感器标定或硬件功能通过。待验证：8 MHz 晶振、ADC 电压和分压接线、MQ 模块预热/响应、继电器接点与有效电平、复位期间 PA8 的默认状态、EEPROM 地址/写周期、按键实物消抖、EXTI 下降沿在实物按键抖动下的触发次数、TIM2 10 ms 节拍的实测周期与长时间漂移，以及本轮新增的三项：SSD1306 的实际地址与 400 kHz 下的波形、HC-05 在 9600 baud 下连续收发历史记录的完整性、AT24C02 在 0x20～0xFF 段反复写入的耐久性与掉电时的记录完整性。
+
+主机测试不覆盖 BSP 与组合层：`bsp/ssd1306`、`bsp/serial`、`app/display` 和 `app/app.c` 的引脚绑定、I2C 时序、中断收发与主循环调度都只经过编译和静态核对，需要 Proteus 或实物确认。
