@@ -13,7 +13,8 @@ typedef struct {
 
 /* PB12..PB15 with the CubeMX pull-ups, active low. */
 void key_init(key_t *keys);
-/* Poll from the main loop; returns one bit per debounced press. When CubeMX
- * gains EXTI the interrupt only feeds this state, the debounce stays here. */
+/* Poll from the main loop; returns one bit per debounced press. The EXTI handler
+ * only latches which line moved, in HAL_GPIO_EXTI_Callback() over in key.c; the
+ * debounce and the dispatch stay here. */
 uint8_t key_poll(key_t *keys, uint32_t now);
 #endif

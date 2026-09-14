@@ -14,11 +14,14 @@ typedef struct {
     key_t keys;
     at24c02_t eeprom;
     settings_io_t store;
-    uint32_t last_sample, last_save_attempt;
+    uint32_t last_tick, last_save_attempt;
     bool sensor_ready, storage_ok;
 } app_t;
 
-void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom);
+void app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
+              TIM_HandleTypeDef *tick);
 /* One pass of the bare-metal superloop. */
 void app_run(app_t *app);
+/* Called from TIM2_IRQHandler every 10 ms. Counts ticks and nothing else. */
+void app_tick_isr(void);
 #endif
