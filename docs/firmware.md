@@ -11,14 +11,14 @@
 | cubemx/Core | CubeMX 初始化、启动入口、中断 | HAL；USER CODE 调用 app |
 | cubemx/Drivers | ST HAL、CMSIS | 供应商代码 |
 | bsp/mq_sensor | PA0/PA1/PA4 三路 ADC 顺序采集与校准 | HAL ADC |
-| bsp/key | PB12～PB15 扫描与 30 ms 消抖 | HAL GPIO |
+| bsp/key | PB12～PB15 的 EXTI 边沿锁存、扫描与 30 ms 消抖 | HAL GPIO |
 | bsp/alarm_output | 继电器、阀门指示、LED、蜂鸣器 | HAL GPIO |
 | bsp/at24c02 | I2C2 分页读写与 ACK polling | HAL I2C |
 | app/gas | 阈值、状态机、锁存和安全确认 | 标准 C，不依赖 HAL |
 | app/settings | 配置序列化、CRC16、双副本提交 | 配置类型与读写回调，不依赖 HAL |
 | app/app.c | 初始化装配、采样调度、按键分发、输出及延时保存 | gas、settings、bsp |
 
-main.c 的 USER CODE 只保存应用对象并调用 `app_init`、`app_run`。GPIO 初始化由 CubeMX 负责。`app.c` 把业务状态转换成 BSP 的布尔量，BSP 不接收业务状态机对象。
+main.c 的 USER CODE 只保存应用对象并调用 `app_init`、`app_run`，把 `&hadc1`、`&hi2c2`、`&htim2` 三个句柄交给应用层。GPIO 初始化由 CubeMX 负责。`app.c` 把业务状态转换成 BSP 的布尔量，BSP 不接收业务状态机对象。
 
 `mq_sensor_read()` 按 MQ4、MQ7、MQ8 顺序填充数组，`gas_channel_t` 用同样的顺序编号；`app.c` 里的 `_Static_assert` 保证两者一致，否则阈值会被悄悄换到别的传感器上。
 
@@ -28,15 +28,18 @@ main.c 的 USER CODE 只保存应用对象并调用 `app_init`、`app_run`。GPI
 | --- | --- |
 | 时钟 | 8 MHz HSE → PLL 72 MHz；APB1 36 MHz；ADC 12 MHz |
 | ADC1 | PA0/PA1/PA4，单次软件触发，239.5 cycles；按配置周期顺序采集完整三路 |
+| TIM2 | 72 MHz 定时器时钟，预分频 71、周期 9999，10 ms 更新中断，中断里只累加节拍 |
 | I2C1 | PB6/PB7，100 kHz，预留 SSD1306 |
 | I2C2 | PB10/PB11，100 kHz，AT24C02 默认 7 位地址 0x50 |
 | USART1 | PA9/PA10，115200，8-N-1 |
 | USART2 | PA2/PA3，9600，8-N-1 |
-| 按键 | PB12～PB15，上拉输入，主循环轮询，30 ms 消抖 |
+| 按键 | PB12～PB15，上拉输入，EXTI 下降沿中断，主循环 30 ms 消抖 |
 | 输出 | PB8 绿、PB9 黄、PA6 红、PA7 蜂鸣器、PA8 继电器、PA5 阀门指示 |
 | 调试 | PA13/PA14 SWD，关闭 JTAG |
 
-本版按键使用轮询而非课设要求的外部中断，保持原引脚和功能。迁移到 EXTI 时只需改 `bsp/key.c`：中断里记录待处理位，消抖和分发仍留在主循环。上电已按住的按键必须释放后重按才能产生事件。
+按键走 EXTI 下降沿中断（`EXTI15_10_IRQn`，抢占优先级 0），HAL 生成的处理函数逐个调用 `HAL_GPIO_EXTI_Callback()`，由 `bsp/key.c` 实现：只把「哪一路动了」记进待处理位，消抖和分发仍留在主循环。中断里不碰 ADC、I2C、串口和 EEPROM。电平仍由主循环采样——消抖判断的就是电平，边沿只用来给这个窗口打时间戳，所以一次在两次轮询之间按下又松开的抖动不会变成一次按键。主循环被 EEPROM 写阻塞期间按下的键不会丢：边沿已经锁存，写完之后照常进入消抖。上电已按住的按键必须释放后重按才能产生事件。
+
+采样节拍由 TIM2 的 10 ms 中断提供（`TIM2_IRQn`，抢占优先级 1），中断里只对 `app_ticks` 加一，转换、显示和 EEPROM 全部留主循环。`app_run` 按 `sample_period_ms / 10` 个节拍触发一次采样，并按整周期推进游标，使周期不过主循环抖动而漂移；主循环停顿超过一个整周期时重新对齐。`HAL_GetTick()` 仍是状态机的时间基准，超时、运行时长和消抖都用它，节拍只负责调度。
 
 `alarm_output.h` 集中定义继电器和蜂鸣器的有效电平。继电器默认 PA8 高电平表示允许开阀，低电平关闭。更换极性时，必须同时通过 CubeMX 调整 GPIO 上电默认输出，保证初始化时关闭阀门；复位后到 `MX_GPIO_Init` 之间 PA8 是浮空输入，硬件需要有下拉，否则这段窗口的继电器状态不可控。接点和电平需按实物确认；PA5 仅显示软件开阀命令，没有物理阀位反馈。
 
@@ -86,4 +89,4 @@ Windows 可在 Visual Studio x64 Native Tools 命令行运行 `python tools/run_
 
 ## 后续实现
 
-OLED 显示、PC/蓝牙命令、历史报警持久化尚未实现；两组 I2C 和两路 UART 已完成 HAL 初始化。下一步按 OLED → 串口协议 → 报警历史 → Proteus/实物验证的顺序补齐，同时把按键轮询换成 EXTI、引入 TIM2 作为采样节拍。
+OLED 显示、PC/蓝牙命令、历史报警持久化尚未实现；两组 I2C 和两路 UART 已完成 HAL 初始化，按键 EXTI 与 TIM2 采样节拍已完成。下一步按 OLED → 串口协议 → 报警历史 → Proteus/实物验证的顺序补齐。

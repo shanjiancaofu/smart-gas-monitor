@@ -2,7 +2,33 @@
 
 日期：2026-09-14。
 
-## 当前 HEAD（采样故障判定与采样周期下限修复）
+## 当前 HEAD（按键 EXTI 与 TIM2 采样节拍）
+
+按键改为 EXTI 下降沿中断，采样节拍改由 TIM2 的 10 ms 更新中断驱动。
+
+| 检查 | 结果 |
+| --- | --- |
+| CubeMX 实际生成 | PASS：6.18.0，STM32CubeF1 V1.8.7，生成 `tim.c`、`stm32f1xx_hal_tim.c` 等 |
+| CubeMX 重新生成 | PASS：main.c 的应用初始化/轮询、异常处理关阀、TIM2 中断钩子等 USER CODE 均保留 |
+| ARM 编译和链接 | PASS：GNU Arm 14.3.rel1，Cortex-M3，零 warning/error |
+| 主机 C 单元测试 | PASS：MSVC 19.38，C11，/W4 /WX，`tests/test_gas_monitor.c` 与 `tests/test_settings.c` 全部通过 |
+| 中断向量表指向 | PASS：`.isr_vector` 中 TIM2 槽位为 `0x08000665`、EXTI15_10 槽位为 `0x08000679`，与符号 `TIM2_IRQHandler`、`EXTI15_10_IRQHandler` 相符 |
+| 实物 / Proteus | NOT VERIFIED |
+
+最终 ARM 构建：text = 14632 bytes，data = 12 bytes，bss = 2108 bytes。BIN 为 14644 bytes。
+
+BIN SHA256：`bada06ba51d976dac75d36167604e0ae48ebd2f24a1a20024c0cb3f43a0fbd44`。
+
+`.ioc` 里的两处配置是手写后用无头 CubeMX 生成并**按产物核对**的，因为两者都会静默失败：
+
+- `NVIC.EXTI15_10_IRQn` 与 `NVIC.TIM2_IRQn` 的 8 字段格式里，第 7、8 位必须为 `true:true`，否则 CubeMX 仍然生成中断处理函数和 `HAL_NVIC_SetPriority()`，但**不生成 `HAL_NVIC_EnableIRQ()`**，中断永不触发。修正后 `gpio.c`、`tim.c` 中均出现 `HAL_NVIC_EnableIRQ()`。
+- TIM2 需要一个虚拟引脚 `VP_TIM2_VS_ClockSourceINT`（`Mode=Internal`）来满足 `Enable_Timer` 模式对 `VS_ClockSourceINT` 信号的要求。缺了它 CubeMX 在 `config load` 阶段静默丢弃整个 TIM2，`.ioc` 被 `config save` 写回后也不再有 TIM2，日志里没有任何提示。
+
+核对项：`MX_TIM2_Init()` 中 `Prescaler = 71`、`Period = 9999`，即 72 MHz / 72 / 10000 = 100 Hz = 10 ms。
+
+本轮不改变任何业务规则，主机测试用例未增减，全部沿用上一轮。
+
+## 上一次验证（采样故障判定与采样周期下限修复）
 
 | 检查 | 结果 |
 | --- | --- |
@@ -67,4 +93,4 @@ BIN SHA256：`e446a48b1489a36a74975995291668a140d0f377a3bd3310f6a56440721f711d`�
 
 ## 待验证
 
-上述软件结果不代表传感器标定或硬件功能通过。待验证：8 MHz 晶振、ADC 电压和分压接线、MQ 模块预热/响应、继电器接点与有效电平、复位期间 PA8 的默认状态、EEPROM 地址/写周期、按键实物消抖。OLED、双串口应用协议和报警历史持久化尚未实现。
+上述软件结果不代表传感器标定或硬件功能通过。待验证：8 MHz 晶振、ADC 电压和分压接线、MQ 模块预热/响应、继电器接点与有效电平、复位期间 PA8 的默认状态、EEPROM 地址/写周期、按键实物消抖、EXTI 下降沿在实物按键抖动下的触发次数、TIM2 10 ms 节拍的实测周期与长时间漂移。OLED、双串口应用协议和报警历史持久化尚未实现。

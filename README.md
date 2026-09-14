@@ -25,7 +25,7 @@ smart-gas-monitor/
 └── LICENSE
 ```
 
-已用 STM32CubeMX 生成 STM32F103C8T6 HAL 工程，配置为 `stm32f103/cubemx/smart_gas_monitor.ioc`。已实现三路采样、报警锁存、KEY4 安全恢复、按键阈值与采样周期调整及 AT24C02 参数保存。OLED 显示、串口命令和报警历史持久化尚未实现。
+已用 STM32CubeMX 生成 STM32F103C8T6 HAL 工程，配置为 `stm32f103/cubemx/smart_gas_monitor.ioc`。已实现三路采样、报警锁存、KEY4 安全恢复、按键阈值与采样周期调整及 AT24C02 参数保存；按键走 PB12～PB15 的 EXTI 下降沿，采样节拍由 TIM2 的 10 ms 中断驱动。OLED 显示、串口命令和报警历史持久化尚未实现。
 
 硬件空目录通过 `.gitkeep` 纳入 Git 管理。固件分层如下：
 
@@ -33,7 +33,7 @@ smart-gas-monitor/
 stm32f103/
 ├── bsp/                    # 只访问 HAL，不依赖 app
 │   ├── mq_sensor.*         # PA0/PA1/PA4 三路 ADC 采集
-│   ├── key.*               # PB12～PB15 扫描与消抖
+│   ├── key.*               # PB12～PB15 的 EXTI 边沿锁存、扫描与消抖
 │   ├── alarm_output.*      # 继电器、LED、蜂鸣器
 │   └── at24c02.*           # I2C2 分页读写
 └── app/

@@ -4,6 +4,33 @@
 
 日期均为 2026-09-14。
 
+## `fe84791` — 按键 EXTI 与 TIM2 采样节拍
+
+### 修复
+
+- `.ioc` 中 `NVIC.EXTI15_10_IRQn` 的第 7、8 字段由 `false:false` 改为 `true:true`。原写法下 CubeMX 照样生成中断处理函数和 `HAL_NVIC_SetPriority()`，但**不生成 `HAL_NVIC_EnableIRQ()`**，中断永远不会触发。
+- `.ioc` 补上虚拟引脚 `VP_TIM2_VS_ClockSourceINT`。`Enable_Timer` 模式要求 `VS_ClockSourceINT` 信号，缺了它 CubeMX 在 `config load` 阶段静默丢弃整个 TIM2，日志里没有任何提示。
+
+### 变更
+
+- `app_run()` 的采样调度由「和 `HAL_GetTick()` 比差值」改为按 `sample_period_ms / 10` 个 TIM2 节拍触发，并按整周期推进游标，周期不再随主循环抖动漂移；主循环停顿超过一个整周期时重新对齐。`HAL_GetTick()` 仍是状态机的时间基准，超时、运行时长和消抖都用它。
+- `app_t` 的 `last_sample` 换成 `last_tick`。
+- `key_poll()` 把 EXTI 锁存的边沿并入「电平变化」判定。电平仍是消抖的依据，边沿只用来给消抖窗口打时间戳，因此主循环被 EEPROM 写阻塞期间按下的键不会丢，而两次轮询之间按下又松开的抖动也不会变成一次按键。
+
+### 新增
+
+- 按键改走 EXTI：PB12～PB15 配成 `GPIO_MODE_IT_FALLING` 加上拉，使能 `EXTI15_10_IRQn`（抢占优先级 0）。HAL 生成的处理函数逐个调用 `HAL_GPIO_EXTI_Callback()`，实现放在 `bsp/key.c`，只把「哪一路出现下降沿」记进一个待处理位；消抖和分发仍留在主循环。
+- TIM2 作为采样节拍：预分频 71、周期 9999，即 72 MHz / 72 / 10000 = 100 Hz = 10 ms 更新中断，使能 `TIM2_IRQn`（抢占优先级 1）。中断只对 `app_ticks` 加一，转换、显示和 EEPROM 全部留在主循环。
+- `app_tick_isr()`，由 `TIM2_IRQHandler` 的 USER CODE 调用；`app_init()` 增加 `TIM_HandleTypeDef *tick` 参数并在其中 `HAL_TIM_Base_Start_IT()`。
+
+### 测试
+
+- 无新增用例，本轮不改变业务规则；`tests/test_gas_monitor.c` 与 `tests/test_settings.c` 全部沿用并通过。按键与节拍的改动在 BSP 与组合层，主机测试不覆盖这两层，因此另以中断向量表指向和 `MX_TIM2_Init()` 的参数作为核对依据，见[验证记录](verification.md)。
+
+### 文档
+
+- `docs/firmware.md` 外设表补 TIM2，按键一行改为 EXTI；删去「本版按键使用轮询」一节，改写为 EXTI 边沿锁存加 TIM2 节拍的实现说明。README 与外设相关的描述同步。
+
 ## `679b859` — 采样故障判定与采样周期下限修复
 
 ### 修复
