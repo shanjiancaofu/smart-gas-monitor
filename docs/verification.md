@@ -2,9 +2,9 @@
 
 日期：2026-09-14。
 
-## 当前 HEAD（OLED、EEPROM 报警记录与双串口协议）
+## 软件冻结候选（基于 `33c6189`）
 
-先 `make clean` 再从无缓存状态完整构建。三个功能提交（`fe153fd`、`4d8c404`、`8fdcf1f`）合并验证一次。
+完成 v4 lockout 安全收尾后，先 `make clean` 再从无缓存状态完整构建，并重新运行四套 Host Test。
 
 | 检查 | 结果 |
 | --- | --- |
@@ -14,9 +14,9 @@
 | 中断向量表指向 | PASS：TIM2、USART1、USART2、EXTI15_10 四个槽位 |
 | 实物 / Proteus | NOT VERIFIED |
 
-最终 ARM 构建：text = 27504 bytes，data = 92 bytes，bss = 4148 bytes。BIN 为 27596 bytes，占 Flash 64 KB 的 42%，RAM 20 KB 的 20%。本轮修复 OLED 行缓冲、TIM2 启动失败处理、历史写入失败状态传播，并将蜂鸣器 5 秒窗口改为 TIM2 的 500 个 10 ms tick。
+最终 ARM 构建：text = 27648 bytes，data = 92 bytes，bss = 4148 bytes。BIN 为 27740 bytes，占 Flash 64 KB 的 42%，RAM 20 KB 的 20%。本轮将配置升级到 v4，lockout 纳入 CRC；ALARM、FAULT、远程 CLOSE 和 KEY4 使用统一锁存边沿持久化；持续状态不重复置 dirty；历史坏记录界面会清除残行。
 
-BIN SHA256：`d61ef6a29bf48cec8084abd206c2e22de17125e5c4ddb1f846a5613efee13d84`。
+BIN SHA256：`49d78ed3244f58ec23cedccacd05a52912958ca2328bea8398d820aca306359d`。
 
 ### 中断向量表
 
@@ -24,12 +24,12 @@ BIN SHA256：`d61ef6a29bf48cec8084abd206c2e22de17125e5c4ddb1f846a5613efee13d84`�
 
 | 槽位偏移 | 偏移地址 | 内容 | 符号 |
 | --- | --- | --- | --- |
-| 0xB0（IRQ 28，TIM2） | 0x080000b0 | 0x080006c1 | `TIM2_IRQHandler`（0x080006c0） |
-| 0xD4（IRQ 37，USART1） | 0x080000d4 | 0x080006d5 | `USART1_IRQHandler`（0x080006d4） |
-| 0xD8（IRQ 38，USART2） | 0x080000d8 | 0x080006e5 | `USART2_IRQHandler`（0x080006e4） |
-| 0xE0（IRQ 40，EXTI15_10） | 0x080000e0 | 0x080006f5 | `EXTI15_10_IRQHandler`（0x080006f4） |
+| 0xB0（IRQ 28，TIM2） | 0x080000b0 | 0x080006c9 | `TIM2_IRQHandler`（0x080006c8） |
+| 0xD4（IRQ 37，USART1） | 0x080000d4 | 0x080006dd | `USART1_IRQHandler`（0x080006dc） |
+| 0xD8（IRQ 38，USART2） | 0x080000d8 | 0x080006ed | `USART2_IRQHandler`（0x080006ec） |
+| 0xE0（IRQ 40，EXTI15_10） | 0x080000e0 | 0x080006fd | `EXTI15_10_IRQHandler`（0x080006fc） |
 
-`app_tick_isr()`（0x0800353c）由 `TIM2_IRQHandler` 的 `USER CODE BEGIN TIM2_IRQn 1` 段调用。`MX_TIM2_Init()` 中 `Prescaler = 71`、`Period = 9999`，即 72 MHz / 72 / 10000 = 10 ms。
+`app_tick_isr()`（0x0800356c）由 `TIM2_IRQHandler` 的 `USER CODE BEGIN TIM2_IRQn 1` 段调用。`MX_TIM2_Init()` 中 `Prescaler = 71`、`Period = 9999`，即 72 MHz / 72 / 10000 = 10 ms。
 
 ### USART NVIC
 
@@ -124,9 +124,9 @@ BIN SHA256：`e446a48b1489a36a74975995291668a140d0f377a3bd3310f6a56440721f711d`�
 
 ## 测试覆盖
 
-主机测试覆盖：三路分别触发预警/报警的边界、危险时禁止人工开阀、恢复后维持锁存、连续安全 3 秒后确认、采样失败/越界/超时、恢复采样不能掩盖停顿、32 位时间回绕、阈值上下限、采样周期设置与超时联动、延时保存、首次采样前不误判故障、首次采样失败判为故障、上电自动开阀、低阈值下仍可恢复。
+主机测试覆盖：三路分别触发预警/报警的边界、危险时禁止人工开阀、恢复后维持锁存、持久化 lockout 启动恢复、连续安全 3 秒后 KEY4 清除、持续 ALARM/FAULT 不重复置 dirty、采样失败/越界/超时、恢复采样不能掩盖停顿、32 位时间回绕、阈值上下限、采样周期设置与超时联动、延时保存、首次采样前不误判故障、首次采样失败判为故障、无锁存上电自动开阀、低阈值下仍可恢复。
 
-存储测试覆盖：空 EEPROM、CRC 损坏回退、版本不匹配回退、越界值拒绝，以及双副本写入各字节处中断后保留旧配置。
+存储测试覆盖：空 EEPROM、CRC 损坏回退、lockout 字节损坏回退、版本不匹配回退、越界值拒绝，以及双副本写入各字节处中断后保留旧配置。
 
 历史测试覆盖：区域边界（0x20～0xFF 恰好 14 条）、空存储、写入后按倒序读回、重启后顺序延续、环形回绕覆盖最旧记录、写入中断留下的残槽被判为无效、CRC 损坏的记录被丢弃。
 

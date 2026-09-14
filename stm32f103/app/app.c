@@ -55,6 +55,15 @@ static void poll_links(app_t *app, uint32_t now)
     pump_replies(app);
 }
 
+static void persist_lockout_edge(app_t *app)
+{
+    bool lockout = app->monitor.config.lockout;
+    if (lockout == app->last_lockout) return;
+    app->last_lockout = lockout;
+    app->storage_ok = settings_save(&app->store, &app->monitor.config);
+    if (app->storage_ok) app->monitor.dirty = false;
+}
+
 bool app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
               I2C_HandleTypeDef *oled, TIM_HandleTypeDef *tick,
               UART_HandleTypeDef *usb, UART_HandleTypeDef *radio)
@@ -86,6 +95,7 @@ bool app_init(app_t *app, ADC_HandleTypeDef *adc, I2C_HandleTypeDef *eeprom,
     serial_init(&app->link_usb, usb);
     serial_init(&app->link_radio, radio);
     app->last_state = app->monitor.state;
+    app->last_lockout = app->monitor.config.lockout;
     apply_outputs(&app->monitor, app_ticks);
     return true;
 }
@@ -124,6 +134,9 @@ void app_run(app_t *app)
             display_history_key(&app->display, &app->history, key)) continue;
         gas_monitor_key(&app->monitor, key, now);
     }
+    /* Process remote CLOSE before applying outputs and persisting the edge. */
+    poll_links(app, now);
+    persist_lockout_edge(app);
     apply_outputs(&app->monitor, app_ticks);
     /* One record per alarm episode. The state machine is the authority on when
      * an alarm starts, and the previous state is what makes a persisting alarm
@@ -135,8 +148,6 @@ void app_run(app_t *app)
         for (i = 0; i < GAS_COUNT; ++i) entry.adc[i] = app->monitor.adc[i];
         entry.alarm_mask = app->monitor.alarm_mask;
         if (!history_append(&app->history, &entry)) app->storage_ok = false;
-        if (!settings_save(&app->store, &app->monitor.config)) app->storage_ok = false;
-        else app->monitor.dirty = false;
         /* The page is showing a record list that just changed underneath it. */
         if (app->monitor.selected == GAS_SEL_HISTORY) app->display.history_index = 0u;
         /* Told without being asked, so a phone watching the radio link does not
@@ -145,7 +156,6 @@ void app_run(app_t *app)
     }
     app->last_state = app->monitor.state;
     display_update(&app->display, &app->monitor, &app->history, app->storage_ok, now);
-    poll_links(app, HAL_GetTick());
     if (gas_monitor_save_due(&app->monitor, now) &&
         (uint32_t)(now - app->last_save_attempt) >= GAS_SAVE_DELAY_MS) {
         app->last_save_attempt = now;

@@ -167,6 +167,8 @@ static void test_valve(void)
     command(&p, "VALVE CLOSE", 63100, out, sizeof(out));
     assert(strcmp(out, "OK VALVE=CLOSED") == 0);
     assert(!gas_monitor_valve_open(&m));
+    assert(m.config.lockout && m.dirty);
+    m.dirty = false;
 
     /* There is deliberately no remote open. The whole point of latching the
      * valve is that clearing it takes someone at the panel, so the link must
@@ -177,6 +179,7 @@ static void test_valve(void)
     command(&p, "VALVE close", 63100, out, sizeof(out));
     assert(strcmp(out, "OK VALVE=CLOSED") == 0);
     assert(!gas_monitor_valve_open(&m));
+    assert(!m.dirty);
 
     /* Reopening after a remote close follows the same rule as after an alarm:
      * the concentration has to be low and KEY4 has to be pressed. */

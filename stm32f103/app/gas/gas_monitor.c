@@ -33,6 +33,26 @@ static bool period_step(uint16_t *value, bool up)
     return *value != old;
 }
 
+static void set_lockout(gas_monitor_t *m, uint32_t now)
+{
+    if (!m->config.lockout) {
+        m->config.lockout = true;
+        m->dirty = true;
+        m->changed_ms = now;
+    }
+    m->latched = true;
+}
+
+static void clear_lockout(gas_monitor_t *m, uint32_t now)
+{
+    if (m->config.lockout) {
+        m->config.lockout = false;
+        m->dirty = true;
+        m->changed_ms = now;
+    }
+    m->latched = false;
+}
+
 void gas_config_defaults(gas_config_t *c)
 {
     /* Demonstration ADC counts, not calibrated ppm thresholds. */
@@ -138,7 +158,7 @@ void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
          * started: that is still warm-up, and it must not latch the valve. Once
          * an attempt has been made, a missing reading is a sampler fault. */
         m->state = m->sample_attempted ? GAS_FAULT : GAS_WARMUP;
-        if (m->sample_attempted) m->latched = true;
+        if (m->sample_attempted) set_lockout(m, now);
         m->safe_timing = false;
         return;
     }
@@ -149,8 +169,7 @@ void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
     }
     if (alarm != 0) {
         if (m->alarm_mask == 0) ++m->alarm_count;
-        m->alarm_mask = alarm; m->latched = true; m->config.lockout = true;
-        m->dirty = true;
+        m->alarm_mask = alarm; set_lockout(m, now);
         m->state = GAS_ALARM; m->safe_timing = false;
         return;
     }
@@ -199,7 +218,7 @@ void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now)
         }
         if (changed) config_changed(m, now);
     } else if (key == 4 && m->reset_ready && m->state == GAS_SAFE_WAIT) {
-        m->latched = false; m->config.lockout = false; m->dirty = true;
+        clear_lockout(m, now);
         gas_monitor_tick(m, now);
     }
 }
@@ -230,7 +249,7 @@ bool gas_monitor_set_period(gas_monitor_t *m, uint16_t ms, uint32_t now)
 
 void gas_monitor_close_valve(gas_monitor_t *m, uint32_t now)
 {
-    m->latched = true; m->config.lockout = true; m->dirty = true;
+    set_lockout(m, now);
     gas_monitor_tick(m, now);
 }
 bool gas_monitor_valve_open(const gas_monitor_t *m)

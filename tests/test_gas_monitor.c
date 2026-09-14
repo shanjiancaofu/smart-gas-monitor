@@ -32,7 +32,10 @@ static void test_states(void)
         gas_monitor_sample(&m, values, true, 63200);
         assert(m.state == GAS_ALARM && !gas_monitor_valve_open(&m));
         assert(m.alarm_mask == (1u << i) && m.alarm_count == 1);
-        gas_monitor_key(&m, 4, 63200);
+        m.dirty = false;
+        sample(&m, 63250, values[0], values[1], values[2]);
+        assert(m.state == GAS_ALARM && !m.dirty);
+        gas_monitor_key(&m, 4, 63250);
         assert(!gas_monitor_valve_open(&m));
         for (t = 63300; t <= 66300; t += 100) sample(&m, t, 500, 500, 500);
         assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
@@ -43,6 +46,10 @@ static void test_states(void)
     run_to_normal(&m, 0);
     gas_monitor_tick(&m, 63500);
     assert(m.state == GAS_FAULT && !gas_monitor_valve_open(&m));
+    assert(m.config.lockout && m.dirty);
+    m.dirty = false;
+    gas_monitor_tick(&m, 63501);
+    assert(!m.dirty);
     sample(&m, 63600, 500, 500, 500);
     gas_monitor_key(&m, 4, 63600);
     assert(!gas_monitor_valve_open(&m));
@@ -100,6 +107,22 @@ static void test_failed_attempt_is_a_fault(void)
     gas_monitor_key(&m, 4, 100000);
     assert(gas_monitor_valve_open(&m));
 }
+static void test_persisted_lockout(void)
+{
+    gas_monitor_t m;
+    gas_config_t c;
+    uint32_t t;
+    gas_config_defaults(&c);
+    c.lockout = true;
+    gas_monitor_init(&m, &c, 0);
+    assert(m.latched && !gas_monitor_valve_open(&m));
+    for (t = 0; t <= GAS_WARMUP_MS + GAS_SAFE_HOLD_MS; t += 100)
+        sample(&m, t, 500, 500, 500);
+    assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
+    gas_monitor_key(&m, 4, GAS_WARMUP_MS + GAS_SAFE_HOLD_MS);
+    assert(!m.config.lockout && m.dirty && gas_monitor_valve_open(&m));
+}
+
 static void test_low_threshold_recovers(void)
 {
     gas_monitor_t m;
@@ -169,6 +192,7 @@ int main(void)
     test_power_up_opens();
     test_no_fault_before_first_sample();
     test_failed_attempt_is_a_fault();
+    test_persisted_lockout();
     test_low_threshold_recovers();
     test_keys();
     test_sample_period();

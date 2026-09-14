@@ -4,6 +4,14 @@
 
 日期均为 2026-09-14。
 
+## 待提交 — 软件冻结收尾
+
+- 修复 SSD1306 小字体行缓冲越界；`app_init()` 检查 TIM2 启动结果；历史写入失败反馈到 `storage_ok`；蜂鸣器 5 秒窗口改用 TIM2 的 500 个 10 ms 节拍。
+- 配置格式升级到 v4：byte 12 保存 lockout，byte 13～14 保存覆盖 byte 0～12 的 CRC16，commit 仍在 byte 15。lockout 损坏会使该槽失效并回退另一有效槽。
+- ALARM、FAULT、远程 `VALVE CLOSE` 共用锁存路径，KEY4 共用清除路径。只有 lockout 边沿会置 dirty；组合层在边沿立即保存，失败后走原有 2 秒重试，持续 ALARM/FAULT 不重复磨损 EEPROM。
+- 历史记录 CRC 失败时清空 OLED 剩余行，避免残留上一条记录。
+- 新增回归覆盖 lockout CRC、掉电恢复、持续 ALARM/FAULT 不重复 dirty、重复远程 CLOSE 不重复 dirty。四套 Host Test 和无缓存 ARM 构建通过。
+
 ## `8fdcf1f` — 双串口文本协议
 
 ### 变更

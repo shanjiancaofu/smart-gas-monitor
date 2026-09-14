@@ -90,6 +90,12 @@ static void draw_history(display_t *d, const history_t *h)
     }
     if (!history_get(h, d->history_index, &entry)) {
         putf(d, 1u, false, "RECORD %u UNREADABLE", d->history_index);
+        putf(d, 2u, false, "");
+        putf(d, 3u, false, "");
+        putf(d, 4u, false, "");
+        putf(d, 5u, false, "");
+        putf(d, 6u, false, "");
+        putf(d, 7u, false, "");
         return;
     }
     gas_alarm_mask_name(entry.alarm_mask, mask, sizeof(mask));

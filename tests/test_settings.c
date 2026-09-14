@@ -48,6 +48,11 @@ static void test_store(void)
     assert(settings_save(&io, &b));
     assert(settings_load(&io, &loaded));
     assert(loaded.alarm[GAS_MQ7] == 2500 && loaded.sample_period_ms == 500 && loaded.lockout);
+    /* The newer slot's lockout byte is covered by CRC; corrupting it must
+     * reject that slot and fall back to the older unlocked copy. */
+    f.data[28] ^= 1u;
+    assert(settings_load(&io, &loaded) && !loaded.lockout);
+    f = baseline;
     /* A corrupted newer slot must not take the good one down with it. */
     f.data[20] ^= 1;
     assert(settings_load(&io, &loaded));

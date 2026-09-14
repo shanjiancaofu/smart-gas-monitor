@@ -26,7 +26,7 @@ typedef struct {
     serial_t link_usb, link_radio;
     gas_state_t last_state;
     uint32_t last_tick, last_save_attempt;
-    bool sensor_ready, storage_ok;
+    bool sensor_ready, storage_ok, last_lockout;
 } app_t;
 
 /* The EEPROM and the panel are on separate I2C buses, so they are passed
