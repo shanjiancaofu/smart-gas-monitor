@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "runtime/gas_app.h"
+#include "app.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,7 +46,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static gas_app_t gas_app;
+static app_t app;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -95,7 +95,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  gas_app_init(&gas_app, &hadc1, &hi2c2);
+  app_init(&app, &hadc1, &hi2c2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -105,7 +105,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    gas_app_poll(&gas_app);
+    app_run(&app);
   }
   /* USER CODE END 3 */
 }
@@ -168,7 +168,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  gas_board_close();
+  alarm_output_force_safe();
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1)
