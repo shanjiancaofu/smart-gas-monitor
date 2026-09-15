@@ -1,6 +1,6 @@
 # 固件说明
 
-工程按 `main → app → bsp → HAL` 分层。CubeMX 负责 `stm32f103/cubemx/` 中的初始化与 HAL 文件，仓库根目录的 CMake 配置负责统一编译 CubeMX、app 和 bsp。
+工程按 `main → app → bsp → HAL` 分层。CubeMX 负责 `stm32f103/` 中的初始化与 HAL 文件，仓库根目录的 CMake 配置负责统一编译 CubeMX、app 和 bsp。
 
 ## 构建目录
 

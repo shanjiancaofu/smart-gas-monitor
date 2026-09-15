@@ -9,9 +9,9 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--cubemx', type=pathlib.Path, required=True, help='CubeMX installation directory')
 parser.add_argument('--cube', type=pathlib.Path, required=True, help='Installed STM32Cube FW_F1 directory')
 args = parser.parse_args()
-ioc = root / 'stm32f103/cubemx/smart_gas_monitor.ioc'
-main = root / 'stm32f103/cubemx/Core/Src/main.c'
-makefile = root / 'stm32f103/cubemx/Makefile'
+ioc = root / 'stm32f103/smart_gas_monitor.ioc'
+main = root / 'stm32f103/Core/Src/main.c'
+makefile = root / 'stm32f103/Makefile'
 before = makefile.stat().st_mtime_ns
 build = root / 'build'
 build.mkdir(exist_ok=True)

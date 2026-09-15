@@ -31,7 +31,7 @@ data = 92 bytes
 bss  = 4172 bytes
 BIN  = 29076 bytes
 SHA256 = 01709b4868f8c401a20b32210a9d919ee14ca885375076669243781704cc9c68
-```固件位于 `stm32f103/cubemx/build/`。
+```固件位于 `stm32f103/build/`。
 
 ## 待验证
 

@@ -5,7 +5,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
 set(APP_ROOT "${CMAKE_SOURCE_DIR}/stm32f103")
-set(CUBEMX_ROOT "${APP_ROOT}/cubemx")
+set(CUBEMX_ROOT "${APP_ROOT}")
 set(APP_SOURCES
   ${CUBEMX_ROOT}/Core/Src/main.c
   ${CUBEMX_ROOT}/Core/Src/gpio.c

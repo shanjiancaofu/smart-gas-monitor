@@ -1,6 +1,6 @@
 # 硬件接口
 
-引脚以 `stm32f103/cubemx/smart_gas_monitor.ioc` 为准。
+引脚以 `stm32f103/smart_gas_monitor.ioc` 为准。
 
 | 引脚 | 标签 | 连接 | 说明 |
 | --- | --- | --- | --- |

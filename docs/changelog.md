@@ -231,7 +231,7 @@
 
 ### 新增
 
-- STM32F103C8T6 HAL 工程：CubeMX 6.18.0 / STM32CubeF1 V1.8.7，8 MHz HSE → PLL 72 MHz，ADC1 采 PA0/PA1/PA4，I2C2 接 AT24C64，USART1/USART2 已初始化，输出引脚见[固件说明](firmware.md)。CubeMX 相关文件统一放在 `stm32f103/cubemx/`，`GNUmakefile` 独立加入外层 app/bsp 源码。
+- STM32F103C8T6 HAL 工程：CubeMX 6.18.0 / STM32CubeF1 V1.8.7，8 MHz HSE → PLL 72 MHz，ADC1 采 PA0/PA1/PA4，I2C2 接 AT24C64，USART1/USART2 已初始化，输出引脚见[固件说明](firmware.md)。CubeMX 相关文件统一放在 `stm32f103/`，`GNUmakefile` 独立加入外层 app/bsp 源码。
 - 三路气体采集、危险/预警双阈值判断、报警锁存、KEY4 安全恢复、KEY1～KEY3 阈值调整。
 - AT24C64 双副本参数存储：magic、版本、序号、阈值、CRC16-CCITT 与提交标志；写前清除另一副本的提交标志，写入按 32 字节页边界拆分并做 ACK polling。
 - 主机测试框架：`tools/run_host_tests.py` 编译并运行 `tests/` 下的全部测试，`tools/generate_hal.py` 重新生成 HAL。
