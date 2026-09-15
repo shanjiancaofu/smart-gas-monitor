@@ -4,6 +4,13 @@
 
 日期：顶部目录重构一条为 2026-09-15，其余各条为 2026-09-14。
 
+## `d8b819d` — 面板对象移交组合层
+
+- `display` 原先内嵌 `bsp_oled_t` 并替它调 `bsp_oled_init()`，接口上收一个 `I2C_HandleTypeDef *`——display 模块里唯一具名的 HAL 类型。现在面板对象由 `app_t` 持有（和 sensor、eeprom、keys、两个 uart 一致），`display_init()` 收对象不收句柄，自己不再初始化硬件。
+- `bsp_oled_t` 增加 `ready` 字段，由 `bsp_oled_is_ready()` 查询；`display_t` 不再留第二份副本，`display_update()` 直接问 BSP。
+- **这不等于 display 可以主机测试。** HAL 头仍经 `bsp_oled.h` 传递包含（`bsp_oled_t` 里存着 I2C 句柄），改动去掉的是 display 接口上的 HAL 类型，不是 HAL 依赖本身。
+- 改完之后全 app 层只剩 `app.c` 具名 HAL 类型，即取六个 CubeMX 句柄的那几行。
+
 ## `079fbaa` — 按业务和硬件职责整理
 
 - app 按 gas、alarm、config、history、protocol、display 分工；main 改为无参数 app_init/app_update，应用对象在 app.c 内部。
