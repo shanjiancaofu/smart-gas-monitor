@@ -65,7 +65,7 @@ stm32f103/
 ## 构建和测试
 
 ```powershell
-make -C stm32f103/cubemx -j4
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -MakeArgs -j4
 python tools/run_host_tests.py --cc cl
 python tools/run_host_tests.py --cc cl --eeprom 2
 ```

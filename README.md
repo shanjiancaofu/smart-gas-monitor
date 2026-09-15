@@ -34,11 +34,11 @@ stm32f103/
 ## 构建和测试
 
 ```powershell
-make -C stm32f103/cubemx -j4
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -MakeArgs -j4
 python tools/run_host_tests.py --cc cl
 ```
 
-固件产物位于 `stm32f103/cubemx/build/`。当前已完成软件测试和 ARM 构建，硬件、Proteus、PCB 和蓝牙 APP 尚待后续联调。
+最终固件产物同步到仓库根目录 `build/`；CubeMX 中间文件保留在 `stm32f103/cubemx/build/`。当前已完成软件测试和 ARM 构建，硬件、Proteus、PCB 和蓝牙 APP 尚待后续联调。
 
 ## 文档
 
