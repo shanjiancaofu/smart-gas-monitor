@@ -1,5 +1,5 @@
-#include "communication/protocol.h"
-#include "gas/gas_monitor.h"
+#include "protocol/protocol.h"
+#include "gas/gas.h"
 #include "history/history.h"
 #include <assert.h>
 #include <stdio.h>
@@ -42,26 +42,26 @@ static void command(protocol_t *p, const char *text, uint32_t now, char *out,
     reply(p, out, size);
 }
 
-static void sample(gas_monitor_t *m, uint32_t now, uint16_t a, uint16_t b, uint16_t c)
+static void sample(gas_t *m, uint32_t now, uint16_t a, uint16_t b, uint16_t c)
 {
     uint16_t values[GAS_COUNT] = {a, b, c};
-    gas_monitor_sample(m, values, true, now);
+    gas_sample(m, values, true, now);
 }
-static void run_to_normal(gas_monitor_t *m, uint32_t start)
+static void run_to_normal(gas_t *m, uint32_t start)
 {
     uint32_t t;
-    gas_monitor_init(m, NULL, start);
+    gas_init(m, NULL, start);
     for (t = 0; t <= GAS_WARMUP_MS + GAS_SAFE_HOLD_MS; t += 100)
         sample(m, start + t, 500, 500, 500);
-    assert(m->state == GAS_NORMAL && gas_monitor_valve_open(m));
+    assert(m->state == GAS_NORMAL && gas_valve_open(m));
 }
 
 static void test_queries(void)
 {
-    gas_monitor_t m;
+    gas_t m;
     protocol_t p;
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     char out[512];
     run_to_normal(&m, 0);
@@ -93,10 +93,10 @@ static void test_queries(void)
 
 static void test_set(void)
 {
-    gas_monitor_t m;
+    gas_t m;
     protocol_t p;
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     char out[512];
     run_to_normal(&m, 0);
@@ -186,10 +186,10 @@ static void test_set(void)
 
 static void test_valve(void)
 {
-    gas_monitor_t m;
+    gas_t m;
     protocol_t p;
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     uint32_t t;
     char out[512];
@@ -200,7 +200,7 @@ static void test_valve(void)
 
     command(&p, "VALVE CLOSE", 63100, out, sizeof(out));
     assert(strcmp(out, "OK VALVE=CLOSED") == 0);
-    assert(!gas_monitor_valve_open(&m));
+    assert(!gas_valve_open(&m));
     assert(m.config.lockout && m.dirty);
     m.dirty = false;
 
@@ -208,10 +208,10 @@ static void test_valve(void)
      * 链路不能有能力撤销一次关阀。 */
     command(&p, "VALVE OPEN", 63100, out, sizeof(out));
     assert(strcmp(out, "ERR ONLY CLOSE") == 0);
-    assert(!gas_monitor_valve_open(&m));
+    assert(!gas_valve_open(&m));
     command(&p, "VALVE close", 63100, out, sizeof(out));
     assert(strcmp(out, "OK VALVE=CLOSED") == 0);
-    assert(!gas_monitor_valve_open(&m));
+    assert(!gas_valve_open(&m));
     assert(!m.dirty);
 
     /* 远程关阀之后重新开阀，和报警之后是同一条规则：浓度要够低，且必须按下
@@ -219,17 +219,17 @@ static void test_valve(void)
     for (t = 63200; t <= 66300; t += 100) sample(&m, t, 500, 500, 500);
     assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
     command(&p, "VALVE OPEN", 66300, out, sizeof(out));
-    assert(strcmp(out, "ERR ONLY CLOSE") == 0 && !gas_monitor_valve_open(&m));
-    gas_monitor_key(&m, 4, 66300);
-    assert(gas_monitor_valve_open(&m));
+    assert(strcmp(out, "ERR ONLY CLOSE") == 0 && !gas_valve_open(&m));
+    gas_key(&m, 4, 66300);
+    assert(gas_valve_open(&m));
 }
 
 static void test_history(void)
 {
-    gas_monitor_t m;
+    gas_t m;
     protocol_t p;
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     history_entry_t entry;
     char out[512];
@@ -244,7 +244,7 @@ static void test_history(void)
         entry.adc[GAS_MQ8] = 200u;
         entry.uptime_s = 60u + i;
         entry.alarm_mask = (uint8_t)(1u << i);
-        assert(history_append(&h, &entry));
+        assert(history_add(&h, &entry));
     }
     protocol_init(&p, &m, &h);
     command(&p, "HISTORY?", 63100, out, sizeof(out));
@@ -258,10 +258,10 @@ static void test_history(void)
 
 static void test_alarm_notice(void)
 {
-    gas_monitor_t m;
+    gas_t m;
     protocol_t p;
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     char out[512];
     run_to_normal(&m, 0);
@@ -285,10 +285,10 @@ static void test_alarm_notice(void)
 /* 超过协议行长上限的输入不能撑爆任何东西，而且之后协议仍然可用。 */
 static void test_long_line(void)
 {
-    gas_monitor_t m;
+    gas_t m;
     protocol_t p;
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     char out[512];
     char line[PROTOCOL_LINE_MAX * 2u];

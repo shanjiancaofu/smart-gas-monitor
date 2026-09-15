@@ -1,5 +1,5 @@
-#ifndef SERIAL_H
-#define SERIAL_H
+#ifndef BSP_UART_H
+#define BSP_UART_H
 #include "stm32f1xx_hal.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -15,7 +15,7 @@
 
 typedef struct {
     UART_HandleTypeDef *uart;
-    uint8_t rx_byte;                 /* 逐个字节交给 HAL */
+    uint8_t rx_byte; /* 逐个字节交给 HAL */
     volatile uint8_t rx[SERIAL_RX_RING];
     volatile uint16_t rx_head, rx_tail;
     volatile uint8_t tx[SERIAL_TX_RING];
@@ -25,19 +25,19 @@ typedef struct {
     bool dropping;
     bool ready;
     bool tx_busy;
-} serial_t;
+} bsp_uart_t;
 
 /* 收发两个方向都是中断驱动：主循环从不等待字符移位输出，否则一条长应答会让
  * 采样停住的时间超过采样器自己的故障超时。 */
-void serial_init(serial_t *s, UART_HandleTypeDef *uart);
+void bsp_uart_init(bsp_uart_t *s, UART_HandleTypeDef *uart);
 /* 重试 HAL 拒绝启动的发送。主循环每轮调用一次。 */
-void serial_poll(serial_t *s);
+void bsp_uart_poll(bsp_uart_t *s);
 
 /* 用目前已经到达的内容凑出一整行，否则返回 false。一个调用点只允许读一个
  * 端口；每次调用会消耗掉它取走的内容。 */
-bool serial_read_line(serial_t *s, char *line, size_t size);
+bool bsp_uart_read_line(bsp_uart_t *s, char *line, size_t size);
 /* 把文本排进发送队列并立即返回。队列放不下时返回 false，一个字节也不发：
  * 半行比没有更糟，因为对端是按行读取的文本。 */
-bool serial_write(serial_t *s, const char *text);
-bool serial_busy(const serial_t *s);
+bool bsp_uart_write(bsp_uart_t *s, const char *text);
+bool bsp_uart_busy(const bsp_uart_t *s);
 #endif

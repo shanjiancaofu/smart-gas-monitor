@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "app.h"
+#include "alarm/alarm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,7 +48,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static app_t app;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -97,7 +98,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  if (!app_init(&app, &hadc1, &hi2c2, &hi2c1, &htim2, &huart1, &huart2))
+  if (!app_init())
   {
     Error_Handler();
   }
@@ -110,7 +111,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    app_run(&app);
+    app_update();
   }
   /* USER CODE END 3 */
 }
@@ -173,7 +174,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  alarm_output_force_safe();
+  alarm_force_safe();
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1)

@@ -1,6 +1,6 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
-#include "gas/gas_monitor.h"
+#include "gas/gas.h"
 #include "history/history.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -21,7 +21,7 @@ typedef enum {
 } protocol_job_t;
 
 typedef struct {
-    gas_monitor_t *monitor;
+    gas_t *monitor;
     const history_t *history;
     protocol_job_t job;
     uint8_t line;
@@ -29,7 +29,7 @@ typedef struct {
     char text[PROTOCOL_LINE_MAX];
 } protocol_t;
 
-void protocol_init(protocol_t *p, gas_monitor_t *monitor, const history_t *history);
+void protocol_init(protocol_t *p, gas_t *monitor, const history_t *history);
 /* 解析一行命令并排入应答。无法识别的输入会排入一行错误：被静默忽略的
  * 命令与链路不通无法区分，而后者正是对着它敲命令的人想弄清楚的。 */
 void protocol_command(protocol_t *p, const char *line, uint32_t now);

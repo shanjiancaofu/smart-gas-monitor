@@ -10,17 +10,19 @@ parser.add_argument("--cc", default="cc")
 args = parser.parse_args()
 
 TESTS = {
-    "test_gas_monitor": ["tests/test_gas_monitor.c",
-                         "stm32f103/app/gas/gas_monitor.c"],
-    "test_settings": ["tests/test_settings.c",
-                      "stm32f103/app/gas/gas_monitor.c",
-                      "stm32f103/app/settings/settings.c"],
+    "test_alarm": ["tests/test_alarm.c", "stm32f103/app/alarm/alarm.c",
+                   "stm32f103/app/gas/gas.c", "stm32f103/app/config/config.c"],
+    "test_gas": ["tests/test_gas.c",
+                 "stm32f103/app/gas/gas.c", "stm32f103/app/config/config.c"],
+    "test_config": ["tests/test_config.c",
+                    "stm32f103/app/gas/gas.c",
+                    "stm32f103/app/config/config.c"],
     "test_history": ["tests/test_history.c",
                      "stm32f103/app/history/history.c"],
     "test_protocol": ["tests/test_protocol.c",
-                      "stm32f103/app/gas/gas_monitor.c",
+                      "stm32f103/app/gas/gas.c",
                       "stm32f103/app/history/history.c",
-                      "stm32f103/app/communication/protocol.c"],
+                      "stm32f103/app/protocol/protocol.c", "stm32f103/app/config/config.c"],
 }
 with tempfile.TemporaryDirectory(prefix="gas-tests-") as folder:
     folder = pathlib.Path(folder)
@@ -33,9 +35,10 @@ with tempfile.TemporaryDirectory(prefix="gas-tests-") as folder:
             # decodes them as the local code page and C4819 becomes an error
             # under /WX. The cross build needs nothing: gcc assumes UTF-8.
             command = [args.cc, "/nologo", "/std:c11", "/W4", "/WX", "/utf-8",
-                       f"/I{root / 'stm32f103/app'}", *map(str, paths), f"/Fe:{exe}"]
+                       f"/I{root / 'stm32f103/app'}", f"/I{root / 'stm32f103/bsp'}", *map(str, paths), f"/Fe:{exe}"]
         else:
             command = [args.cc, "-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic",
-                       f"-I{root / 'stm32f103/app'}", *map(str, paths), "-o", str(exe)]
+                       f"-I{root / 'stm32f103/app'}", f"-I{root / 'stm32f103/bsp'}", *map(str, paths), "-o", str(exe)]
         subprocess.run(command, cwd=folder, check=True)
         subprocess.run([str(exe)], cwd=folder, check=True)
+

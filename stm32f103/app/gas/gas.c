@@ -1,4 +1,4 @@
-#include "gas/gas_monitor.h"
+#include "gas/gas.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -10,10 +10,15 @@ static const uint16_t period_steps[] = {100, 200, 500, 1000, 2000, 5000};
 static bool threshold_step(uint16_t *value, bool up)
 {
     uint16_t old = *value;
-    if (up) *value = *value > GAS_THRESHOLD_MAX - GAS_THRESHOLD_STEP
-        ? GAS_THRESHOLD_MAX : (uint16_t)(*value + GAS_THRESHOLD_STEP);
-    else *value = *value < GAS_THRESHOLD_MIN + GAS_THRESHOLD_STEP
-        ? GAS_THRESHOLD_MIN : (uint16_t)(*value - GAS_THRESHOLD_STEP);
+    if (up) {
+        *value = *value > GAS_THRESHOLD_MAX - GAS_THRESHOLD_STEP
+                     ? GAS_THRESHOLD_MAX
+                     : (uint16_t)(*value + GAS_THRESHOLD_STEP);
+    } else {
+        *value = *value < GAS_THRESHOLD_MIN + GAS_THRESHOLD_STEP
+                     ? GAS_THRESHOLD_MIN
+                     : (uint16_t)(*value - GAS_THRESHOLD_STEP);
+    }
     return *value != old;
 }
 
@@ -22,12 +27,18 @@ static bool period_step(uint16_t *value, bool up)
     uint16_t old = *value;
     unsigned i;
     if (up) {
-        for (i = 0; i < PERIOD_STEP_COUNT; ++i)
-            if (period_steps[i] > old) break;
+        for (i = 0; i < PERIOD_STEP_COUNT; ++i) {
+            if (period_steps[i] > old) {
+                break;
+            }
+        }
         *value = i < PERIOD_STEP_COUNT ? period_steps[i] : period_steps[PERIOD_STEP_COUNT - 1];
     } else {
-        for (i = PERIOD_STEP_COUNT; i > 0; --i)
-            if (period_steps[i - 1] < old) break;
+        for (i = PERIOD_STEP_COUNT; i > 0; --i) {
+            if (period_steps[i - 1] < old) {
+                break;
+            }
+        }
         *value = i > 0 ? period_steps[i - 1] : period_steps[0];
     }
     return *value != old;
@@ -39,14 +50,18 @@ static bool buzzer_step(uint8_t *value, bool up)
 {
     uint8_t old = *value;
     if (up) {
-        if (*value < GAS_BUZZER_ALWAYS) *value = (uint8_t)(*value + 1u);
+        if (*value < GAS_BUZZER_ALWAYS) {
+            *value = (uint8_t)(*value + 1u);
+        }
     } else {
-        if (*value > GAS_BUZZER_OFF) *value = (uint8_t)(*value - 1u);
+        if (*value > GAS_BUZZER_OFF) {
+            *value = (uint8_t)(*value - 1u);
+        }
     }
     return *value != old;
 }
 
-static void set_lockout(gas_monitor_t *m, uint32_t now)
+static void set_lockout(gas_t *m, uint32_t now)
 {
     if (!m->config.lockout) {
         m->config.lockout = true;
@@ -56,7 +71,7 @@ static void set_lockout(gas_monitor_t *m, uint32_t now)
     m->latched = true;
 }
 
-static void clear_lockout(gas_monitor_t *m, uint32_t now)
+static void clear_lockout(gas_t *m, uint32_t now)
 {
     if (m->config.lockout) {
         m->config.lockout = false;
@@ -66,31 +81,8 @@ static void clear_lockout(gas_monitor_t *m, uint32_t now)
     m->latched = false;
 }
 
-void gas_config_defaults(gas_config_t *c)
-{
-    /* 课设演示用的 ADC counts，不是标定过的 ppm 阈值。 */
-    c->alarm[GAS_MQ4] = 2400;
-    c->alarm[GAS_MQ7] = 2000;
-    c->alarm[GAS_MQ8] = 2400;
-    c->sample_period_ms = 100;
-    /* 与改动前那个固定的 5 秒一致，升级到 v5 不会让蜂鸣器行为跟着变。 */
-    c->buzzer = 5u;
-    c->lockout = false;
-}
-bool gas_config_valid(const gas_config_t *c)
-{
-    unsigned i;
-    for (i = 0; i < GAS_COUNT; ++i)
-        if (c->alarm[i] < GAS_THRESHOLD_MIN || c->alarm[i] > GAS_THRESHOLD_MAX) return false;
-    /* 蜂鸣器只判上界：0 是合法取值（不响），而下界由无符号类型本身兜住。 */
-    return c->buzzer <= GAS_BUZZER_ALWAYS &&
-           c->sample_period_ms >= GAS_PERIOD_MIN_MS &&
-           c->sample_period_ms <= GAS_PERIOD_MAX_MS &&
-           c->sample_period_ms % GAS_TICK_MS == 0u;
-}
-
 /* 改动需要落盘，先记账。延时保存和失败后的重试都看这两个字段。 */
-static void mark_dirty(gas_monitor_t *m, uint32_t now)
+static void mark_dirty(gas_t *m, uint32_t now)
 {
     m->dirty = true;
     m->changed_ms = now;
@@ -101,20 +93,24 @@ static void mark_dirty(gas_monitor_t *m, uint32_t now)
  *
  * 蜂鸣器时长不走这里，只走 mark_dirty：它不参与「低于危险阈值多久算恢复」的
  * 判断，重启那个窗口只会让 SAFE_WAIT 里的 KEY4 白等三秒。 */
-static void config_changed(gas_monitor_t *m, uint32_t now)
+static void config_changed(gas_t *m, uint32_t now)
 {
     mark_dirty(m, now);
     m->safe_timing = false;
-    gas_monitor_tick(m, now);
+    gas_update(m, now);
 }
 
 const char *gas_channel_name(gas_channel_t channel)
 {
     switch (channel) {
-    case GAS_MQ4: return "MQ4";
-    case GAS_MQ7: return "MQ7";
-    case GAS_MQ8: return "MQ8";
-    default: break;
+    case GAS_MQ4:
+        return "MQ4";
+    case GAS_MQ7:
+        return "MQ7";
+    case GAS_MQ8:
+        return "MQ8";
+    default:
+        break;
     }
     return "MQ?";
 }
@@ -122,13 +118,20 @@ const char *gas_channel_name(gas_channel_t channel)
 const char *gas_state_name(gas_state_t state)
 {
     switch (state) {
-    case GAS_WARMUP: return "WARMUP";
-    case GAS_NORMAL: return "NORMAL";
-    case GAS_WARNING: return "WARNING";
-    case GAS_ALARM: return "ALARM";
-    case GAS_SAFE_WAIT: return "SAFE";
-    case GAS_FAULT: return "FAULT";
-    default: break;
+    case GAS_WARMUP:
+        return "WARMUP";
+    case GAS_NORMAL:
+        return "NORMAL";
+    case GAS_WARNING:
+        return "WARNING";
+    case GAS_ALARM:
+        return "ALARM";
+    case GAS_SAFE_WAIT:
+        return "SAFE";
+    case GAS_FAULT:
+        return "FAULT";
+    default:
+        break;
     }
     return "?";
 }
@@ -137,33 +140,24 @@ void gas_alarm_mask_name(uint8_t mask, char *out, size_t size)
 {
     size_t used = 0u;
     unsigned i;
-    if (size == 0u) return;
+    if (size == 0u) {
+        return;
+    }
     out[0] = '\0';
     for (i = 0; i < GAS_COUNT; ++i) {
-        if ((mask & (1u << i)) == 0u) continue;
+        if ((mask & (1u << i)) == 0u) {
+            continue;
+        }
         (void)snprintf(out + used, size - used, "%s%s", used != 0u ? "+" : "",
                        gas_channel_name((gas_channel_t)i));
         used = strlen(out);
-        if (used + 1u >= size) break;
+        if (used + 1u >= size) {
+            break;
+        }
     }
-    if (used == 0u) (void)snprintf(out, size, "NONE");
-}
-
-void gas_buzzer_name(uint8_t value, char *out, size_t size)
-{
-    if (size == 0u) return;
-    /* 判 >= 而不是 == ：万一有个超出范围的值得了进来，它读作最长的那个档位，
-     * 而不是显示成「62S」这种不存在的设置。 */
-    if (value == GAS_BUZZER_OFF) (void)snprintf(out, size, "OFF");
-    else if (value >= GAS_BUZZER_ALWAYS) (void)snprintf(out, size, "ALWAYS");
-    else (void)snprintf(out, size, "%uS", (unsigned)value);
-}
-
-uint16_t gas_buzzer_duration_ms(const gas_config_t *config)
-{
-    if (config->buzzer == GAS_BUZZER_OFF) return 0u;
-    if (config->buzzer >= GAS_BUZZER_ALWAYS) return GAS_BUZZER_FOREVER_MS;
-    return (uint16_t)((uint16_t)config->buzzer * 1000u);
+    if (used == 0u) {
+        (void)snprintf(out, size, "NONE");
+    }
 }
 
 uint16_t gas_warning_threshold(uint16_t alarm)
@@ -174,22 +168,25 @@ uint16_t gas_safe_threshold(uint16_t alarm)
 {
     return (uint16_t)((uint32_t)alarm * GAS_SAFE_PERCENT / 100u);
 }
-uint32_t gas_sample_timeout_ms(const gas_monitor_t *m)
+uint32_t gas_sample_timeout_ms(const gas_t *m)
 {
     return (uint32_t)m->config.sample_period_ms * GAS_SAMPLE_TIMEOUT_PERIODS;
 }
-void gas_monitor_init(gas_monitor_t *m, const gas_config_t *c, uint32_t now)
+void gas_init(gas_t *m, const gas_config_t *c, uint32_t now)
 {
     memset(m, 0, sizeof(*m));
-    if (c != 0 && gas_config_valid(c)) m->config = *c;
-    else gas_config_defaults(&m->config);
+    if (c != 0 && config_valid(c)) {
+        m->config = *c;
+    } else {
+        config_defaults(&m->config);
+    }
     m->started_ms = now;
     m->state = GAS_WARMUP;
     /* 正常上电会在预热结束且环境安全时自动开阀。只有报警或采样器故障才会
      * 锁存关阀，等待人工解除。 */
     m->latched = m->config.lockout;
 }
-void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
+void gas_update(gas_t *m, uint32_t now)
 {
     unsigned i;
     bool warning = false, safe = true;
@@ -199,119 +196,185 @@ void gas_monitor_tick(gas_monitor_t *m, uint32_t now)
         /* 第一次转换之前，采样器不是失败了，而是还没开始：这仍属预热，不能
          * 锁存阀门。只要尝试过一次，读数缺失就是采样器故障。 */
         m->state = m->sample_attempted ? GAS_FAULT : GAS_WARMUP;
-        if (m->sample_attempted) set_lockout(m, now);
+        if (m->sample_attempted) {
+            set_lockout(m, now);
+        }
         m->safe_timing = false;
         return;
     }
     for (i = 0; i < GAS_COUNT; ++i) {
-        if (m->adc[i] >= m->config.alarm[i]) alarm |= (uint8_t)(1u << i);
-        if (m->adc[i] >= gas_warning_threshold(m->config.alarm[i])) warning = true;
-        if (m->adc[i] >= gas_safe_threshold(m->config.alarm[i])) safe = false;
+        if (m->adc[i] >= m->config.alarm[i]) {
+            alarm |= (uint8_t)(1u << i);
+        }
+        if (m->adc[i] >= gas_warning_threshold(m->config.alarm[i])) {
+            warning = true;
+        }
+        if (m->adc[i] >= gas_safe_threshold(m->config.alarm[i])) {
+            safe = false;
+        }
     }
     if (alarm != 0) {
-        if (m->alarm_mask == 0) ++m->alarm_count;
-        m->alarm_mask = alarm; set_lockout(m, now);
-        m->state = GAS_ALARM; m->safe_timing = false;
+        if (m->alarm_mask == 0) {
+            ++m->alarm_count;
+        }
+        m->alarm_mask = alarm;
+        set_lockout(m, now);
+        m->state = GAS_ALARM;
+        m->safe_timing = false;
         return;
     }
     m->alarm_mask = 0;
     if ((uint32_t)(now - m->started_ms) < GAS_WARMUP_MS) {
-        m->state = GAS_WARMUP; m->safe_timing = false;
+        m->state = GAS_WARMUP;
+        m->safe_timing = false;
         return;
     }
     if (safe) {
-        if (!m->safe_timing) { m->safe_since_ms = now; m->safe_timing = true; }
+        if (!m->safe_timing) {
+            m->safe_since_ms = now;
+            m->safe_timing = true;
+        }
         m->reset_ready = (uint32_t)(now - m->safe_since_ms) >= GAS_SAFE_HOLD_MS;
-    } else m->safe_timing = false;
+    } else {
+        m->safe_timing = false;
+    }
     m->state = m->latched ? GAS_SAFE_WAIT : (warning ? GAS_WARNING : GAS_NORMAL);
 }
-void gas_monitor_sample(gas_monitor_t *m, const uint16_t adc[GAS_COUNT], bool valid, uint32_t now)
+void gas_sample(gas_t *m, const uint16_t adc[GAS_COUNT], bool valid, uint32_t now)
 {
     unsigned i;
     /* 新样本不能掩盖之前发生过的调度或采样中断。 */
-    if (m->sample_attempted && (uint32_t)(now - m->sample_ms) >= gas_sample_timeout_ms(m))
-        gas_monitor_tick(m, now);
+    if (m->sample_attempted && (uint32_t)(now - m->sample_ms) >= gas_sample_timeout_ms(m)) {
+        gas_update(m, now);
+    }
     /* 每次转换尝试都算数，成功与否都一样：一直读不出东西的采样器是故障，
      * 不是没完没了的预热。 */
     m->sample_attempted = true;
     m->sample_valid = valid;
     if (valid) {
         for (i = 0; i < GAS_COUNT; ++i) {
-            if (adc[i] > 4095) m->sample_valid = false;
+            if (adc[i] > 4095) {
+                m->sample_valid = false;
+            }
             m->adc[i] = adc[i];
         }
         m->sample_ms = now;
     }
-    gas_monitor_tick(m, now);
+    gas_update(m, now);
 }
-void gas_monitor_key(gas_monitor_t *m, unsigned key, uint32_t now)
+void gas_key(gas_t *m, unsigned key, uint32_t now)
 {
-    gas_monitor_tick(m, now);
-    if (key == 1) m->selected = (uint8_t)((m->selected + 1u) % GAS_SEL_COUNT);
-    else if (key == 2 || key == 3) {
+    gas_update(m, now);
+    if (key == 1) {
+        m->selected = (uint8_t)((m->selected + 1u) % GAS_SEL_COUNT);
+    } else if (key == 2 || key == 3) {
         bool up = key == 2;
         /* 按名字判断选中项，而不是用「只要不是 MAIN」：正是这个上界把
          * selected - 1 约束在 alarm[] 之内。 */
         if (m->selected == GAS_SEL_PERIOD) {
-            if (period_step(&m->config.sample_period_ms, up)) config_changed(m, now);
+            if (period_step(&m->config.sample_period_ms, up)) {
+                config_changed(m, now);
+            }
         } else if (m->selected >= GAS_SEL_MQ4 && m->selected <= GAS_SEL_MQ8) {
-            if (threshold_step(&m->config.alarm[m->selected - 1u], up)) config_changed(m, now);
+            if (threshold_step(&m->config.alarm[m->selected - 1u], up)) {
+                config_changed(m, now);
+            }
         } else if (m->selected == GAS_SEL_BUZZER) {
             /* 只记账，不重启安全窗口——理由见 config_changed()。 */
-            if (buzzer_step(&m->config.buzzer, up)) mark_dirty(m, now);
+            if (buzzer_step(&m->config.buzzer, up)) {
+                mark_dirty(m, now);
+            }
         }
     } else if (key == 4 && m->reset_ready && m->state == GAS_SAFE_WAIT) {
         clear_lockout(m, now);
-        gas_monitor_tick(m, now);
+        gas_update(m, now);
     }
 }
-bool gas_monitor_set_threshold(gas_monitor_t *m, gas_channel_t channel,
-                               uint16_t value, uint32_t now)
+bool gas_set_threshold(gas_t *m, gas_channel_t channel, uint16_t value, uint32_t now)
 {
     gas_config_t candidate = m->config;
-    if (channel >= GAS_COUNT) return false;
+    if (channel >= GAS_COUNT) {
+        return false;
+    }
     candidate.alarm[channel] = value;
     /* 校验整个候选配置而不只是被改动的那个字段，这样无论调用者以为自己在
      * 改哪个字段，运行中的配置都不会漂出解码器接受的范围。 */
-    if (!gas_config_valid(&candidate)) return false;
+    if (!config_valid(&candidate)) {
+        return false;
+    }
     m->config = candidate;
     config_changed(m, now);
     return true;
 }
 
-bool gas_monitor_set_period(gas_monitor_t *m, uint16_t ms, uint32_t now)
+bool gas_set_period(gas_t *m, uint16_t ms, uint32_t now)
 {
     gas_config_t candidate = m->config;
     candidate.sample_period_ms = ms;
-    if (!gas_config_valid(&candidate)) return false;
+    if (!config_valid(&candidate)) {
+        return false;
+    }
     m->config = candidate;
     config_changed(m, now);
     return true;
 }
 
-bool gas_monitor_set_buzzer(gas_monitor_t *m, uint16_t value, uint32_t now)
+bool gas_set_buzzer(gas_t *m, uint16_t value, uint32_t now)
 {
     gas_config_t candidate = m->config;
-    /* 先判上界再收窄：256 截断成 0 会被 gas_config_valid() 放行，静默变成
+    /* 先判上界再收窄：256 截断成 0 会被 config_valid() 放行，静默变成
      * 「不响」，那是个安全的取值，但绝不是调用者要的那个。 */
-    if (value > GAS_BUZZER_ALWAYS) return false;
+    if (value > GAS_BUZZER_ALWAYS) {
+        return false;
+    }
     candidate.buzzer = (uint8_t)value;
-    if (!gas_config_valid(&candidate)) return false;
+    if (!config_valid(&candidate)) {
+        return false;
+    }
     m->config = candidate;
     mark_dirty(m, now);
     return true;
 }
 
-void gas_monitor_close_valve(gas_monitor_t *m, uint32_t now)
+void gas_close_valve(gas_t *m, uint32_t now)
 {
     set_lockout(m, now);
-    gas_monitor_tick(m, now);
+    gas_update(m, now);
 }
-bool gas_monitor_valve_open(const gas_monitor_t *m)
+bool gas_valve_open(const gas_t *m)
 {
     return !m->latched && (m->state == GAS_NORMAL || m->state == GAS_WARNING);
 }
-bool gas_monitor_save_due(const gas_monitor_t *m, uint32_t now)
+bool gas_save_due(const gas_t *m, uint32_t now)
 {
     return m->dirty && (uint32_t)(now - m->changed_ms) >= GAS_SAVE_DELAY_MS;
+}
+
+bool gas_read_samples(gas_adc_read_fn read, void *context, uint16_t values[GAS_COUNT])
+{
+    static const uint8_t channels[GAS_COUNT] = {0, 1, 4};
+    unsigned channel, sample;
+
+    for (channel = 0; channel < GAS_COUNT; ++channel) {
+        uint32_t sum = 0;
+        for (sample = 0; sample < 8; ++sample) {
+            uint16_t value;
+            if (!read(context, channels[channel], &value) || value > 4095u) {
+                return false;
+            }
+            sum += value;
+        }
+        values[channel] = (uint16_t)(sum / 8u);
+    }
+    return true;
+}
+
+uint16_t gas_get_value(const gas_t *gas, uint8_t id)
+{
+    return id < GAS_COUNT ? gas->adc[id] : 0u;
+}
+
+gas_state_t gas_get_state(const gas_t *gas)
+{
+    return gas->state;
 }

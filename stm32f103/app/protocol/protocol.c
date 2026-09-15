@@ -1,4 +1,4 @@
-#include "communication/protocol.h"
+#include "protocol/protocol.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,11 +23,19 @@ static unsigned split(char *text, char tokens[TOKEN_MAX][TOKEN_LEN])
     for (;;) {
         char *start;
         unsigned n = 0u;
-        while (*p == ' ') ++p;
-        if (*p == '\0' || count >= TOKEN_MAX) break;
+        while (*p == ' ') {
+            ++p;
+        }
+        if (*p == '\0' || count >= TOKEN_MAX) {
+            break;
+        }
         start = p;
-        while (*p != '\0' && *p != ' ') ++p;
-        while (start < p && n + 1u < TOKEN_LEN) tokens[count][n++] = *start++;
+        while (*p != '\0' && *p != ' ') {
+            ++p;
+        }
+        while (start < p && n + 1u < TOKEN_LEN) {
+            tokens[count][n++] = *start++;
+        }
         tokens[count][n] = '\0';
         ++count;
     }
@@ -37,11 +45,17 @@ static unsigned split(char *text, char tokens[TOKEN_MAX][TOKEN_LEN])
 static bool parse_u16(const char *text, uint16_t *out)
 {
     uint32_t value = 0u;
-    if (*text == '\0') return false;
+    if (*text == '\0') {
+        return false;
+    }
     while (*text != '\0') {
-        if (*text < '0' || *text > '9') return false;
+        if (*text < '0' || *text > '9') {
+            return false;
+        }
         value = value * 10u + (uint32_t)(*text - '0');
-        if (value > 0xffffu) return false;
+        if (value > 0xffffu) {
+            return false;
+        }
         ++text;
     }
     *out = (uint16_t)value;
@@ -52,7 +66,9 @@ static bool channel_of(const char *token, gas_channel_t *out)
 {
     unsigned i;
     for (i = 0; i < GAS_COUNT; ++i) {
-        if (strcmp(token, gas_channel_name((gas_channel_t)i)) != 0) continue;
+        if (strcmp(token, gas_channel_name((gas_channel_t)i)) != 0) {
+            continue;
+        }
         *out = (gas_channel_t)i;
         return true;
     }
@@ -61,15 +77,25 @@ static bool channel_of(const char *token, gas_channel_t *out)
 
 /* SET BUZZER 的取值：OFF、ALWAYS，或一个秒数。末尾的 S 可有可无，这样
  * CONFIG? 打印出来的 "5S" 能原样敲回来。范围不在这里判，交给
- * gas_monitor_set_buzzer()：超范围要回 ERR RANGE，而不是 ERR VALUE。 */
+ * gas_set_buzzer()：超范围要回 ERR RANGE，而不是 ERR VALUE。 */
 static bool parse_buzzer(const char *token, uint16_t *out)
 {
     char digits[TOKEN_LEN];
     size_t n = strlen(token);
-    if (strcmp(token, "OFF") == 0) { *out = GAS_BUZZER_OFF; return true; }
-    if (strcmp(token, "ALWAYS") == 0) { *out = GAS_BUZZER_ALWAYS; return true; }
-    if (n > 0u && token[n - 1u] == 'S') --n;
-    if (n == 0u || n + 1u > sizeof(digits)) return false;
+    if (strcmp(token, "OFF") == 0) {
+        *out = GAS_BUZZER_OFF;
+        return true;
+    }
+    if (strcmp(token, "ALWAYS") == 0) {
+        *out = GAS_BUZZER_ALWAYS;
+        return true;
+    }
+    if (n > 0u && token[n - 1u] == 'S') {
+        --n;
+    }
+    if (n == 0u || n + 1u > sizeof(digits)) {
+        return false;
+    }
     memcpy(digits, token, n);
     digits[n] = '\0';
     return parse_u16(digits, out);
@@ -91,7 +117,7 @@ static void onef(protocol_t *p, const char *format, ...)
     p->job = PROTOCOL_ONE;
 }
 
-void protocol_init(protocol_t *p, gas_monitor_t *monitor, const history_t *history)
+void protocol_init(protocol_t *p, gas_t *monitor, const history_t *history)
 {
     memset(p, 0, sizeof(*p));
     p->monitor = monitor;
@@ -99,7 +125,10 @@ void protocol_init(protocol_t *p, gas_monitor_t *monitor, const history_t *histo
     p->job = PROTOCOL_IDLE;
 }
 
-bool protocol_busy(const protocol_t *p) { return p->job != PROTOCOL_IDLE; }
+bool protocol_busy(const protocol_t *p)
+{
+    return p->job != PROTOCOL_IDLE;
+}
 
 void protocol_alarm(protocol_t *p)
 {
@@ -121,13 +150,17 @@ void protocol_command(protocol_t *p, const char *line, uint32_t now)
         one(p, "ERR LONG");
         return;
     }
-    for (i = 0u; line[i] != '\0'; ++i) work[i] = upper(line[i]);
+    for (i = 0u; line[i] != '\0'; ++i) {
+        work[i] = upper(line[i]);
+    }
     work[i] = '\0';
 
     count = split(work, tokens);
     /* 空行是行结束，不是命令；对它回话只会让终端的回显看起来像一场
      * 对话。 */
-    if (count == 0u) return;
+    if (count == 0u) {
+        return;
+    }
     if (count > TOKEN_MAX) {
         one(p, "ERR ARGS");
         return;
@@ -149,29 +182,33 @@ void protocol_command(protocol_t *p, const char *line, uint32_t now)
             char name[8];
             if (!parse_buzzer(tokens[2], &value)) {
                 one(p, "ERR VALUE");
-            } else if (!gas_monitor_set_buzzer(p->monitor, value, now)) {
+            } else if (!gas_set_buzzer(p->monitor, value, now)) {
                 one(p, "ERR RANGE");
             } else {
                 /* 回显名字而不是数字：这样打印出来的值可以原样敲回去。 */
-                gas_buzzer_name((uint8_t)value, name, sizeof(name));
+                config_buzzer_name((uint8_t)value, name, sizeof(name));
                 onef(p, "OK BUZZ=%s", name);
             }
         } else if (!parse_u16(tokens[2], &value)) {
             one(p, "ERR VALUE");
         } else if (channel_of(tokens[1], &channel)) {
-            if (gas_monitor_set_threshold(p->monitor, channel, value, now))
+            if (gas_set_threshold(p->monitor, channel, value, now)) {
                 onef(p, "OK %s=%u", gas_channel_name(channel), value);
-            else one(p, "ERR RANGE");
+            } else {
+                one(p, "ERR RANGE");
+            }
         } else if (strcmp(tokens[1], "PERIOD") == 0) {
-            if (gas_monitor_set_period(p->monitor, value, now))
+            if (gas_set_period(p->monitor, value, now)) {
                 onef(p, "OK PERIOD=%u", value);
-            else one(p, "ERR RANGE");
+            } else {
+                one(p, "ERR RANGE");
+            }
         } else {
             one(p, "ERR NAME");
         }
     } else if (count == 2u && strcmp(tokens[0], "VALVE") == 0) {
         if (strcmp(tokens[1], "CLOSE") == 0) {
-            gas_monitor_close_valve(p->monitor, now);
+            gas_close_valve(p->monitor, now);
             one(p, "OK VALVE=CLOSED");
         } else {
             /* 刻意没有远程开阀。解除锁存得靠站在面板前的人。 */
@@ -184,7 +221,7 @@ void protocol_command(protocol_t *p, const char *line, uint32_t now)
 
 const char *protocol_next(protocol_t *p)
 {
-    const gas_monitor_t *m = p->monitor;
+    const gas_t *m = p->monitor;
     switch (p->job) {
     case PROTOCOL_IDLE:
         return NULL;
@@ -196,21 +233,18 @@ const char *protocol_next(protocol_t *p)
         gas_alarm_mask_name(m->alarm_mask, mask, sizeof(mask));
         /* 主动推送，这样盯着这条链路的手机不必轮询就能知道发生了报警。 */
         (void)snprintf(p->text, sizeof(p->text), "ALARM %s %s=%u %s=%u %s=%u", mask,
-                       gas_channel_name(GAS_MQ4), m->adc[GAS_MQ4],
-                       gas_channel_name(GAS_MQ7), m->adc[GAS_MQ7],
-                       gas_channel_name(GAS_MQ8), m->adc[GAS_MQ8]);
+                       gas_channel_name(GAS_MQ4), m->adc[GAS_MQ4], gas_channel_name(GAS_MQ7),
+                       m->adc[GAS_MQ7], gas_channel_name(GAS_MQ8), m->adc[GAS_MQ8]);
         p->job = PROTOCOL_IDLE;
         return p->text;
     }
     case PROTOCOL_STATUS:
         if (p->line == 0u) {
             (void)snprintf(p->text, sizeof(p->text), "STATE=%s VALVE=%s ALARMS=%lu",
-                           gas_state_name(m->state),
-                           gas_monitor_valve_open(m) ? "OPEN" : "CLOSED",
+                           gas_state_name(m->state), gas_valve_open(m) ? "OPEN" : "CLOSED",
                            (unsigned long)m->alarm_count);
         } else if (p->line == 1u) {
-            (void)snprintf(p->text, sizeof(p->text),
-                           "%s=%u/%u %s=%u/%u %s=%u/%u",
+            (void)snprintf(p->text, sizeof(p->text), "%s=%u/%u %s=%u/%u %s=%u/%u",
                            gas_channel_name(GAS_MQ4), m->adc[GAS_MQ4], m->config.alarm[GAS_MQ4],
                            gas_channel_name(GAS_MQ7), m->adc[GAS_MQ7], m->config.alarm[GAS_MQ7],
                            gas_channel_name(GAS_MQ8), m->adc[GAS_MQ8], m->config.alarm[GAS_MQ8]);
@@ -224,9 +258,8 @@ const char *protocol_next(protocol_t *p)
     case PROTOCOL_CONFIG:
         if (p->line == 0u) {
             char buzz[8];
-            gas_buzzer_name(m->config.buzzer, buzz, sizeof(buzz));
-            (void)snprintf(p->text, sizeof(p->text),
-                           "TH %s=%u %s=%u %s=%u PERIOD=%u BUZZ=%s",
+            config_buzzer_name(m->config.buzzer, buzz, sizeof(buzz));
+            (void)snprintf(p->text, sizeof(p->text), "TH %s=%u %s=%u %s=%u PERIOD=%u BUZZ=%s",
                            gas_channel_name(GAS_MQ4), m->config.alarm[GAS_MQ4],
                            gas_channel_name(GAS_MQ7), m->config.alarm[GAS_MQ7],
                            gas_channel_name(GAS_MQ8), m->config.alarm[GAS_MQ8],
@@ -257,13 +290,11 @@ const char *protocol_next(protocol_t *p)
                 gas_alarm_mask_name(entry.alarm_mask, mask, sizeof(mask));
                 /* 索引放在最前面：面板上翻阅键移动的就是它，这样两处
                  * 视图能对得上。 */
-                (void)snprintf(p->text, sizeof(p->text),
-                               "%u SEQ=%u %s=%u %s=%u %s=%u ALARM=%s UP=%lu",
-                               index + 1u, entry.seq,
-                               gas_channel_name(GAS_MQ4), entry.adc[GAS_MQ4],
-                               gas_channel_name(GAS_MQ7), entry.adc[GAS_MQ7],
-                               gas_channel_name(GAS_MQ8), entry.adc[GAS_MQ8],
-                               mask, (unsigned long)entry.uptime_s);
+                (void)snprintf(
+                    p->text, sizeof(p->text), "%u SEQ=%u %s=%u %s=%u %s=%u ALARM=%s UP=%lu",
+                    index + 1u, entry.seq, gas_channel_name(GAS_MQ4), entry.adc[GAS_MQ4],
+                    gas_channel_name(GAS_MQ7), entry.adc[GAS_MQ7], gas_channel_name(GAS_MQ8),
+                    entry.adc[GAS_MQ8], mask, (unsigned long)entry.uptime_s);
             }
         }
         ++p->line;

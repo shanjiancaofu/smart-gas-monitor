@@ -1,4 +1,4 @@
-#include "gas/gas_monitor.h"
+#include "gas/gas.h"
 #include "history/history.h"
 #include <assert.h>
 #include <stdio.h>
@@ -48,7 +48,7 @@ static void test_region(void)
 static void test_empty(void)
 {
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     history_entry_t e;
     memset(&f, 0xff, sizeof(f));
@@ -65,7 +65,7 @@ static void test_empty(void)
 static void test_order_and_reboot(void)
 {
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     history_entry_t e;
     unsigned i;
@@ -74,7 +74,7 @@ static void test_order_and_reboot(void)
     assert(!history_init(&h, &io));
     for (i = 0; i < 3u; ++i) {
         e = make((uint16_t)(2600u + i), 100u * i, (uint8_t)(1u << i));
-        assert(history_append(&h, &e));
+        assert(history_add(&h, &e));
         assert(e.seq == i + 1u);
     }
     /* 下标 0 是最新的一条，所以翻阅是从最近一次报警开始的。 */
@@ -87,7 +87,7 @@ static void test_order_and_reboot(void)
     assert(history_init(&h, &io));
     assert(history_count(&h) == 3u);
     e = make(2700u, 500u, 1u);
-    assert(history_append(&h, &e));
+    assert(history_add(&h, &e));
     assert(e.seq == 4u);
     assert(history_get(&h, 0u, &e) && e.seq == 4u);
     assert(history_get(&h, 3u, &e) && e.seq == 1u);
@@ -96,7 +96,7 @@ static void test_order_and_reboot(void)
 static void test_wraparound(void)
 {
     fake_t f;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     history_entry_t e;
     unsigned i;
@@ -106,7 +106,7 @@ static void test_wraparound(void)
     /* 整整两圈再多一条，所以现存最旧的一条是 seq 15 - 14 + 1。 */
     for (i = 0; i < HISTORY_SLOTS * 2u + 1u; ++i) {
         e = make((uint16_t)i, i, 1u);
-        assert(history_append(&h, &e));
+        assert(history_add(&h, &e));
     }
     assert(history_count(&h) == HISTORY_SLOTS);
     assert(history_get(&h, 0u, &e) && e.seq == 29u && e.adc[GAS_MQ4] == 28u);
@@ -118,7 +118,7 @@ static void test_wraparound(void)
     assert(history_count(&h) == HISTORY_SLOTS);
     assert(history_get(&h, 0u, &e) && e.seq == 29u);
     e = make(999u, 9u, 1u);
-    assert(history_append(&h, &e));
+    assert(history_add(&h, &e));
     assert(e.seq == 30u);
     assert(history_get(&h, 0u, &e) && e.seq == 30u && e.adc[GAS_MQ4] == 999u);
     assert(history_get(&h, HISTORY_SLOTS - 1u, &e) && e.seq == 17u);
@@ -127,25 +127,25 @@ static void test_wraparound(void)
 static void test_torn_and_corrupt(void)
 {
     fake_t f, baseline;
-    settings_io_t io = {&f, read_mem, write_mem};
+    config_io_t io = {&f, read_mem, write_mem};
     history_t h;
     history_entry_t e;
     memset(&f, 0xff, sizeof(f));
     f.budget = -1;
     assert(!history_init(&h, &io));
     e = make(2600u, 60u, 1u);
-    assert(history_append(&h, &e));
+    assert(history_add(&h, &e));
     e = make(2700u, 120u, 2u);
-    assert(history_append(&h, &e));
+    assert(history_add(&h, &e));
     baseline = f;
     /* 写一条记录写到一半掉电，原内容仍可读；更要紧的是不会白吃一个序号。 */
     f.budget = 5;
     e = make(2800u, 180u, 3u);
-    assert(!history_append(&h, &e));
+    assert(!history_add(&h, &e));
     f.budget = -1;
     assert(history_count(&h) == 2u);
     e = make(2800u, 180u, 3u);
-    assert(history_append(&h, &e));
+    assert(history_add(&h, &e));
     assert(e.seq == 3u);
     assert(history_get(&h, 0u, &e) && e.seq == 3u);
     /* 存储中损坏的记录会在下次开机时被丢弃，而不是把残存下来的字段照报出去。
@@ -164,8 +164,31 @@ static void test_torn_and_corrupt(void)
     assert(history_get(&h, 0u, &e) && e.seq == 2u);
 }
 
+static void test_clear(void)
+{
+    fake_t f;
+    config_io_t io = {&f, read_mem, write_mem};
+    history_t h;
+    history_entry_t entry = make(2500, 60, 1);
+    memset(&f, 0xff, sizeof(f));
+    memset(f.data, 0x5a, HISTORY_BASE);
+    f.budget = -1;
+    (void)history_init(&h, &io);
+    assert(history_add(&h, &entry));
+    assert(history_clear(&h));
+    assert(history_count(&h) == 0);
+    assert(!history_init(&h, &io));
+    for (unsigned i = 0; i < HISTORY_BASE; ++i) assert(f.data[i] == 0x5a);
+    assert(history_add(&h, &entry));
+    assert(entry.seq == 1);
+    f.budget = 0;
+    assert(!history_clear(&h));
+    assert(history_count(&h) == 1);
+}
+
 int main(void)
 {
+    test_clear();
     test_region();
     test_empty();
     test_order_and_reboot();
