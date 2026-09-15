@@ -1,67 +1,60 @@
-# 智能燃气监测与自动防护系统
+# 智能燃气监测与自动防护系统 课设版
 
-基于 STM32F103C8T6 的裸机燃气监测系统，代码按 `main → app → bsp → HAL` 分层。
+基于 STM32F103C8T6 的简化课设工程，使用 STM32 HAL 和 Keil5 编译下载。
 
 ```text
 smart-gas-monitor/
-├── CMakeLists.txt
-├── CMakePresets.json
-├── cmake/
-│   └── arm-none-eabi-gcc.cmake
 ├── stm32f103/
-│   ├── app/
-│   ├── bsp/
-│   └── cubemx/
+│   ├── MDK-ARM/smart_gas_monitor.uvprojx  # Keil5 工程
+│   ├── Core/                              # CubeMX 生成初始化代码
+│   ├── Drivers/                           # STM32F1 HAL/CMSIS
+│   ├── app/                               # 应用业务
+│   ├── bsp/                               # 硬件驱动
+│   ├── smart_gas_monitor.ioc              # CubeMX 配置
+│   └── STM32F103xx_FLASH.ld
+├── docs/
 ├── tests/
-├── tools/
-└── build/                    # 生成目录，不提交 Git
-    ├── arm-debug/
-    └── arm-release/
+└── tools/
 ```
 
-当前功能包括 MQ4/MQ6/MQ7 三路采样、五键交互、OLED 页面、TIM2 节拍、AT24C64 参数与报警历史、lockout、多传感器蜂鸣器节奏以及 USART1/HC-05 文本协议。
+当前功能包括 MQ4/MQ6/MQ7 三路采样、五键交互、OLED 页面、TIM2 节拍、AT24C64 参数和报警历史、lockout、多传感器蜂鸣器节奏以及 USART1/HC-05 文本协议。
 
-## 工具要求
+## Keil5 使用
 
-- CMake 3.22 或更高版本
-- Ninja
-- GNU Arm Embedded Toolchain，包含 `arm-none-eabi-gcc`
-
-将工具加入 `PATH`。也可以设置 `ARM_GNU_TOOLCHAIN_ROOT`，其目录下应包含 `bin/arm-none-eabi-gcc`。
-
-## Debug 构建
-
-```sh
-cmake --preset arm-debug
-cmake --build --preset arm-debug --parallel 4
-```
-
-## Release 构建
-
-```sh
-cmake --preset arm-release
-cmake --build --preset arm-release --parallel 4
-```
-
-产物分别位于 `build/arm-debug/` 和 `build/arm-release/`，文件名包含本次配置时间：
+用 Keil5 打开：
 
 ```text
-smart_gas_monitor_YYYYMMDD_HHMMSS.elf
-smart_gas_monitor_YYYYMMDD_HHMMSS.hex
-smart_gas_monitor_YYYYMMDD_HHMMSS.bin
-smart_gas_monitor_YYYYMMDD_HHMMSS.map
+stm32f103/MDK-ARM/smart_gas_monitor.uvprojx
 ```
 
-每次重新执行 `cmake --preset ...` 会更新文件时间戳，并清理该配置目录中的上一组固件文件。
+选择 `smart_gas_monitor` Target 后点击 Build。工程已经加入 CubeMX HAL、`app/` 和 `bsp/` 源文件，头文件路径也已配置。下载使用 ST-Link，芯片选择 STM32F103C8T6。
+
+Keil5 生成的目标文件默认位于：
+
+```text
+stm32f103/MDK-ARM/smart_gas_monitor/
+```
 
 ## 主机测试
 
-```sh
-python tools/run_host_tests.py --cc gcc
-python tools/run_host_tests.py --cc gcc --eeprom 2
+```powershell
+python tools/run_host_tests.py --cc cl
+python tools/run_host_tests.py --cc cl --eeprom 2
 ```
 
-Windows 的 Visual Studio Native Tools 环境也可以使用 `--cc cl`。
+## 可选 CMake 构建
+
+仓库保留 CMake/Ninja 入口用于命令行构建：
+
+```powershell
+cmake --preset arm-debug
+cmake --build --preset arm-debug
+
+cmake --preset arm-release
+cmake --build --preset arm-release
+```
+
+课设交付以 Keil5 工程为准。
 
 ## 文档
 
