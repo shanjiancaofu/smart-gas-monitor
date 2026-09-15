@@ -2,9 +2,9 @@
 
 按时间倒序记录固件的功能性改动。每条附提交短哈希，完整差异用 `git show <哈希>` 查看。构建与测试结果见[验证记录](verification.md)，分层与业务规则见[固件说明](firmware.md)。
 
-日期：2026-09-14 及之前各条为 2026-09-14，目录重构一条为 2026-09-15。
+日期：顶部目录重构一条为 2026-09-15，其余各条为 2026-09-14。
 
-## 2026-09-15 待提交 — 按业务和硬件职责整理
+## `079fbaa` — 按业务和硬件职责整理
 
 - app 按 gas、alarm、config、history、protocol、display 分工；main 改为无参数 app_init/app_update，应用对象在 app.c 内部。
 - BSP 使用 bsp_ 前缀。ADC 只读硬件通道，MQ 映射及八次平均归 gas；蜂鸣器计时归 alarm，LED/蜂鸣器/继电器各有独立 GPIO 驱动；OLED 和 EEPROM 共用 bsp_i2c。
