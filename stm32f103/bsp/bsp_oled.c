@@ -285,7 +285,7 @@ static const uint8_t init_sequence[] = {
 /* HAL 接口要的是非 const 指针，但它只读不写。 */
 static bool command_list(bsp_oled_t *oled, const uint8_t *commands, unsigned count)
 {
-    return bsp_i2c_write(oled->i2c, SSD1306_I2C_ADDR, SSD1306_CMD, commands, (uint16_t)count,
+    return bsp_i2c_write(oled->i2c, SSD1306_I2C_ADDR, SSD1306_CMD, 8u, commands, (uint16_t)count,
                          SSD1306_TIMEOUT);
 }
 
@@ -330,7 +330,7 @@ void bsp_oled_flush(bsp_oled_t *oled)
         if (!command_list(oled, setup, sizeof(setup))) {
             return;
         }
-        if (!bsp_i2c_write(oled->i2c, SSD1306_I2C_ADDR, SSD1306_DATA,
+        if (!bsp_i2c_write(oled->i2c, SSD1306_I2C_ADDR, SSD1306_DATA, 8u,
                            &oled->buffer[page * SSD1306_WIDTH], SSD1306_WIDTH, SSD1306_TIMEOUT)) {
             return;
         }

@@ -1,0 +1,22 @@
+#ifndef BSP_EEPROM_CONFIG_H
+#define BSP_EEPROM_CONFIG_H
+/* 默认 AT24C64；编译时 -DEEPROM_MODEL=2 切换为 AT24C02。 */
+#ifndef EEPROM_MODEL
+#define EEPROM_MODEL 64
+#endif
+#if EEPROM_MODEL == 64
+#define EEPROM_CAPACITY 8192u
+#define EEPROM_PAGE_SIZE 32u
+#define EEPROM_ADDRESS_BITS 16u
+#elif EEPROM_MODEL == 2
+#define EEPROM_CAPACITY 256u
+#define EEPROM_PAGE_SIZE 8u
+#define EEPROM_ADDRESS_BITS 8u
+#else
+#error Unsupported EEPROM_MODEL
+#endif
+
+#ifndef EEPROM_I2C_ADDRESS
+#define EEPROM_I2C_ADDRESS (0x50u << 1)
+#endif
+#endif

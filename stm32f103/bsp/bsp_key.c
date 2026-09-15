@@ -2,29 +2,44 @@
 #include "main.h"
 #include "stm32f1xx_hal.h"
 #include <string.h>
+#include <stdbool.h>
 
-/* bsp_key_bits() 一次读整个半字节，所以四个按键必须正好落在这个半字节上。在 .ioc
- * 里改动它们的顺序会在这里触发断言，而不是把 KEY1 悄悄映射到错误的位上。 */
-_Static_assert(KEY1_Pin == GPIO_PIN_12 && KEY2_Pin == GPIO_PIN_13 && KEY3_Pin == GPIO_PIN_14 &&
-                   KEY4_Pin == GPIO_PIN_15,
-               "bsp_key_bits() assumes KEY1..KEY4 are PB12..PB15");
+_Static_assert(KEY1_Pin != KEY2_Pin && KEY1_Pin != KEY3_Pin && KEY1_Pin != KEY4_Pin &&
+                   KEY1_Pin != KEY5_Pin && KEY2_Pin != KEY3_Pin && KEY2_Pin != KEY4_Pin &&
+                   KEY2_Pin != KEY5_Pin && KEY3_Pin != KEY4_Pin && KEY3_Pin != KEY5_Pin &&
+                   KEY4_Pin != KEY5_Pin,
+               "every key needs its own pin: EXTI lines are shared by pin number");
 
-/* PB12～PB15 对应按键位 0～3，与 bsp_key_bits() 产生的顺序一致。 */
-static const uint16_t bsp_key_pins[KEY_COUNT] = {KEY1_Pin, KEY2_Pin, KEY3_Pin, KEY4_Pin};
+typedef struct {
+    GPIO_TypeDef *port;
+    uint16_t pin;
+} bsp_key_slot_t;
 
-/* EXTI 处理函数已经看到下降沿、但主循环尚未取走的那些线。 */
+static const bsp_key_slot_t bsp_key_slots[KEY_COUNT] = {
+    {KEY1_GPIO_Port, KEY1_Pin}, {KEY2_GPIO_Port, KEY2_Pin}, {KEY3_GPIO_Port, KEY3_Pin},
+    {KEY4_GPIO_Port, KEY4_Pin}, {KEY5_GPIO_Port, KEY5_Pin},
+};
+
 static volatile uint8_t exti_pending;
 
 static uint8_t bsp_key_bits(void)
 {
-    /* 低电平有效，因此取反：按下的键读出来是 1。 */
-    return (uint8_t)(~(KEY1_GPIO_Port->IDR >> 12) & 15u);
+    uint8_t bits = 0u;
+    unsigned i;
+
+    for (i = 0; i < KEY_COUNT; ++i) {
+
+        if (HAL_GPIO_ReadPin(bsp_key_slots[i].port, bsp_key_slots[i].pin) == GPIO_PIN_RESET) {
+            bits |= (uint8_t)(1u << i);
+        }
+    }
+    return bits;
 }
 
 void bsp_key_init(bsp_key_t *keys)
 {
     memset(keys, 0, sizeof(*keys));
-    /* 上电时就已按住的键必须先释放一次，之后才能产生事件。 */
+
     keys->raw = keys->stable = bsp_key_bits();
     exti_pending = 0;
 }
@@ -32,10 +47,9 @@ void bsp_key_init(bsp_key_t *keys)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     unsigned i;
-    /* 由 EXTI15_10_IRQHandler 调用。这里只记住哪一路动了：消抖和分发都留在
-     * 主循环，所以此处不碰 ADC、I2C 总线和 EEPROM。 */
+
     for (i = 0; i < KEY_COUNT; ++i) {
-        if (GPIO_Pin == bsp_key_pins[i]) {
+        if (GPIO_Pin == bsp_key_slots[i].pin) {
             exti_pending |= (uint8_t)(1u << i);
         }
     }
@@ -45,8 +59,7 @@ static uint8_t bsp_key_take_edges(void)
 {
     uint32_t primask = __get_PRIMASK();
     uint8_t edges;
-    /* 恢复而不是使能：万一将来有调用方在自己的临界区里轮询，这里不能悄悄
-     * 把中断重新打开。 */
+
     __disable_irq();
     edges = exti_pending;
     exti_pending = 0;
@@ -60,9 +73,7 @@ uint8_t bsp_key_poll(bsp_key_t *keys, uint32_t now)
     unsigned i;
     for (i = 0; i < KEY_COUNT; ++i) {
         uint8_t mask = (uint8_t)(1u << i);
-        /* 即使本次轮询已经看到该线回到稳定状态，锁存的边沿仍然重新开始计时
-         * 窗口，于是在两次轮询之间按下又松开的动作，仍以边沿而不是以轮询
-         * 时刻计时。 */
+
         if ((raw & mask) != (keys->raw & mask) || (edges & mask)) {
             keys->raw = (uint8_t)((keys->raw & (uint8_t)~mask) | (raw & mask));
             keys->changed_ms[i] = now;
@@ -76,4 +87,9 @@ uint8_t bsp_key_poll(bsp_key_t *keys, uint32_t now)
         }
     }
     return events;
+}
+
+bool bsp_key_is_down(const bsp_key_t *keys, unsigned key)
+{
+    return key < KEY_COUNT && (keys->stable & (1u << key)) != 0u;
 }

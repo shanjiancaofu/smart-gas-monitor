@@ -7,7 +7,7 @@
 #include "usart.h"
 #include "alarm/alarm.h"
 #include "bsp_adc.h"
-#include "bsp_at24c02.h"
+#include "bsp_eeprom.h"
 #include "bsp_key.h"
 #include "bsp_uart.h"
 #include "display/display.h"
@@ -15,22 +15,31 @@
 
 #define APP_TICK_MS GAS_TICK_MS
 
+_Static_assert((unsigned)KEY_PAGE + 1u == (unsigned)GAS_KEY_PAGE &&
+                   (unsigned)KEY_UP + 1u == (unsigned)GAS_KEY_UP &&
+                   (unsigned)KEY_DOWN + 1u == (unsigned)GAS_KEY_DOWN &&
+                   (unsigned)KEY_CONFIRM + 1u == (unsigned)GAS_KEY_CONFIRM &&
+                   (unsigned)KEY_SELECT + 1u == (unsigned)GAS_KEY_SELECT &&
+                   (unsigned)KEY_EVENT_COUNT == (unsigned)GAS_KEY_SELECT,
+               "BSP and application key roles must stay aligned");
+
 typedef struct {
     gas_t monitor;
     bsp_adc_t sensor;
     alarm_t alarm;
     bsp_key_t keys;
-    bsp_at24c02_t eeprom;
+    bsp_eeprom_t eeprom;
     config_io_t store;
     history_t history;
     bsp_oled_t oled;
     display_t display;
     protocol_t protocol;
-    /* USB-TTL 适配器和 HC-05 无线链路走同一套协议，因此由同一个解析器驱动。 */
+
     bsp_uart_t link_usb, link_radio;
     gas_state_t last_state;
     uint32_t last_tick, last_save_attempt;
-    bool sensor_ready, storage_ok, last_lockout;
+    bool sensor_ready, storage_ok, last_lockout, test_mode, key5_held;
+    uint32_t key5_start_ms;
 } app_t;
 
 static app_t system_app;
@@ -39,14 +48,10 @@ static volatile uint32_t app_ticks;
 
 void app_tick_isr(void)
 {
-    /* 只对计数加一。转换、显示和 EEPROM 全部留在主循环，因此这个处理函数
-     * 不会阻塞在任何一个外设上。 */
+
     ++app_ticks;
 }
 
-/* 给每一路各发一行待发应答，且只在两路都空闲时才发。这样限速，14 条记录
- * 的转储才不会阻塞主循环——在 9600 baud 下，那要花的时间足以看起来像一次
- * 采样器故障。 */
 static void pump_replies(app_t *app)
 {
     const char *line;
@@ -63,7 +68,6 @@ static void pump_replies(app_t *app)
     (void)bsp_uart_write(&app->link_radio, "\r\n");
 }
 
-/* 两路链接承载相同的命令，所以应答只入队一次，两个口上的流量完全一样。 */
 static void poll_links(app_t *app, uint32_t now)
 {
     char line[SERIAL_LINE_MAX];
@@ -101,30 +105,26 @@ bool app_init(void)
     gas_config_t config;
     uint32_t now;
     memset(app, 0, sizeof(*app));
-    /* 在别的东西可能失败之前，先把阀门放到它该在的位置。 */
+
     alarm_init(&app->alarm);
-    /* 采样时钟从这里开始运行；采样本身在下面才开始，要等 gas 对象建立
-     * 之后。 */
+
     if (HAL_TIM_Base_Start_IT(tick) != HAL_OK) {
         return false;
     }
     app->last_tick = app_ticks;
     bsp_key_init(&app->keys);
-    bsp_at24c02_init(&app->eeprom, eeprom);
+    bsp_eeprom_init(&app->eeprom, eeprom);
     app->sensor_ready = bsp_adc_init(&app->sensor, adc);
     app->store.context = &app->eeprom;
-    app->store.read = bsp_at24c02_read;
-    app->store.write = bsp_at24c02_write;
+    app->store.read = bsp_eeprom_read;
+    app->store.write = bsp_eeprom_write;
     config_defaults(&config);
     app->storage_ok = config_load(&app->store, &config);
-    /* 历史区与配置共用同一片 EEPROM，所以放在配置之后打开，且不上报结果：
-     * 读不出来的记录就等于空记录。 */
+
     (void)history_init(&app->history, &app->store);
     now = HAL_GetTick();
     gas_init(&app->monitor, &config, now);
-    /* 面板在这里建好再交给 display，和 sensor、eeprom、keys 一样由组合层持有。
-     * 结果不上报：display_update() 自己会看 bsp_oled_is_ready()，面板没起来只是
-     * 不画，其余功能不受影响。 */
+
     (void)bsp_oled_init(&app->oled, oled);
     display_init(&app->display, &app->oled);
     protocol_init(&app->protocol, &app->monitor, &app->history);
@@ -139,20 +139,22 @@ bool app_init(void)
 static uint32_t sample_update(app_t *app)
 {
     uint32_t now = HAL_GetTick();
-    /* 对齐的 32 位读在 Cortex-M3 上是原子的，因此这里不需要临界区。所有
-     * 可选的周期都是 APP_TICK_MS 的整数倍，所以这个除法是精确的。 */
+
     uint32_t ticks = app_ticks;
     uint32_t periods = app->monitor.config.sample_period_ms / APP_TICK_MS;
     if ((uint32_t)(ticks - app->last_tick) >= periods) {
         uint16_t values[GAS_COUNT] = {0};
         bool valid;
-        /* 按整周期推进，使调度在转换耗时变化时仍保持相位；但主循环停顿超过
-         * 一个整周期时重新对齐。 */
+
         app->last_tick += periods;
         if ((uint32_t)(ticks - app->last_tick) >= periods) {
             app->last_tick = ticks;
         }
         valid = app->sensor_ready && gas_read_samples(bsp_adc_read, &app->sensor, values);
+        if (app->test_mode) {
+            values[GAS_MQ6] = 4095u;
+            valid = true;
+        }
         now = HAL_GetTick();
         gas_sample(&app->monitor, values, valid, now);
     }
@@ -162,29 +164,33 @@ static uint32_t sample_update(app_t *app)
 
 static void keys_update(app_t *app, uint32_t now)
 {
-    uint8_t keys;
+    uint8_t keys = bsp_key_poll(&app->keys, now);
     unsigned i;
-    keys = bsp_key_poll(&app->keys, now);
+
+    /* KEY5 短按仍然切换设置项；持续按住 1.5 秒进入答辩测试模式。 */
+    if (bsp_key_is_down(&app->keys, KEY_COUNT - 1u)) {
+        if (!app->key5_held) {
+            app->key5_held = true;
+            app->key5_start_ms = now;
+        } else if (!app->test_mode && (uint32_t)(now - app->key5_start_ms) >= 1500u) {
+            app->test_mode = true;
+            app->display.page = DISPLAY_ALARM;
+        }
+    } else {
+        app->key5_held = false;
+    }
+
     for (i = 0; i < KEY_COUNT; ++i) {
-        unsigned key;
-        if ((keys & (1u << i)) == 0u) {
-            continue;
+        if (keys & (1u << i)) {
+            display_key(&app->display, &app->monitor, &app->history, i + 1u, now);
         }
-        key = i + 1u;
-        /* 历史界面没有可调项，那里的 KEY2/KEY3 改为翻阅记录，不会传到参数处理逻辑里。 */
-        if (app->monitor.selected == GAS_SEL_HISTORY &&
-            display_history_key(&app->display, &app->history, key)) {
-            continue;
-        }
-        gas_key(&app->monitor, key, now);
     }
 }
 
 static void history_update(app_t *app, uint32_t now)
 {
     unsigned i;
-    /* 每次报警只写一条记录。报警何时开始由状态机判定，上一次的状态则用来
-     * 区分「新报警」和「报警还在持续」，后者不会每个采样周期都写。 */
+
     if (app->monitor.state == GAS_ALARM && app->last_state != GAS_ALARM) {
         history_entry_t entry;
         memset(&entry, 0, sizeof(entry));
@@ -196,12 +202,11 @@ static void history_update(app_t *app, uint32_t now)
         if (!history_add(&app->history, &entry)) {
             app->storage_ok = false;
         }
-        /* 这个界面正在显示的记录列表刚刚变了。 */
-        if (app->monitor.selected == GAS_SEL_HISTORY) {
+
+        if (app->display.page == DISPLAY_HISTORY) {
             app->display.history_index = 0u;
         }
-        /* 不等人问就主动推送，这样守着无线链路的手机不必轮询就能知道阀门
-         * 已关。 */
+
         protocol_alarm(&app->protocol);
     }
     app->last_state = app->monitor.state;
@@ -216,7 +221,7 @@ static void config_update(app_t *app, uint32_t now)
         if (app->storage_ok) {
             app->monitor.dirty = false;
         }
-        /* EEPROM 操作是有超时的阻塞事务，做完之后重新评估数据的新鲜度。 */
+
         now = HAL_GetTick();
         gas_update(&app->monitor, now);
         alarm_update(&app->alarm, &app->monitor, app_ticks);

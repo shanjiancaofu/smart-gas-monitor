@@ -35,7 +35,7 @@ static void test_store(void)
     config_defaults(&a);
     /* 每个字段都取一个和默认值不同的值，这样落盘再读回来时，少写或多读任何
      * 一个字段都会在这条链路上露出来。 */
-    b = a; b.alarm[GAS_MQ7] = 2500; b.sample_period_ms = 500; b.lockout = true;
+    b = a; b.alarm[GAS_MQ6] = 2500; b.sample_period_ms = 500; b.lockout = true;
     b.buzzer = GAS_BUZZER_ALWAYS;
     assert(!config_load(&io, &loaded));
     assert(config_save(&io, &a));
@@ -50,7 +50,7 @@ static void test_store(void)
     f = baseline; f.budget = -1;
     assert(config_save(&io, &b));
     assert(config_load(&io, &loaded));
-    assert(loaded.alarm[GAS_MQ7] == 2500 && loaded.sample_period_ms == 500);
+    assert(loaded.alarm[GAS_MQ6] == 2500 && loaded.sample_period_ms == 500);
     assert(loaded.lockout && loaded.buzzer == GAS_BUZZER_ALWAYS);
     /* 下面几处按偏移直接改字节。槽 1 从 0x10 开始，所以它的 byte n 就是
      * data[16 + n]；槽内布局见 settings.c 顶部。 */

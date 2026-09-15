@@ -36,9 +36,13 @@ int main(void)
 
     gas.state = GAS_ALARM;
     gas.latched = true;
+    gas.alarm_mask = 1u;
     alarm_update(&alarm, &gas, start);
     assert(!relay && !valve_led && red_led && buzzer);
-    alarm_update(&alarm, &gas, start + 499u);
+    alarm_update(&alarm, &gas, start + 20u);
+    assert(!buzzer);
+    gas.alarm_mask = 3u;
+    alarm_update(&alarm, &gas, start + 40u);
     assert(buzzer);
     alarm_update(&alarm, &gas, start + 500u);
     assert(!buzzer && red_led && !relay);
@@ -55,7 +59,7 @@ int main(void)
     alarm_update(&alarm, &gas, 1002);
     assert(!buzzer);
     gas.config.buzzer = GAS_BUZZER_ALWAYS;
-    alarm_update(&alarm, &gas, 100000);
+    alarm_update(&alarm, &gas, 1001u + 128u * 1000u);
     assert(buzzer);
     alarm_force_safe();
     assert(!relay && !buzzer && !valve_led);

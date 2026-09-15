@@ -1,17 +1,19 @@
 #include "bsp_i2c.h"
 
-bool bsp_i2c_read(I2C_HandleTypeDef *bus, uint16_t address, uint8_t offset, uint8_t *data,
-                  uint16_t size, uint32_t timeout)
+bool bsp_i2c_read(I2C_HandleTypeDef *bus, uint16_t address, uint16_t offset, uint16_t address_bits,
+                  uint8_t *data, uint16_t size, uint32_t timeout)
 {
-    return HAL_I2C_Mem_Read(bus, address, offset, I2C_MEMADD_SIZE_8BIT, data, size, timeout) ==
-           HAL_OK;
+    return HAL_I2C_Mem_Read(bus, address, offset,
+                            (address_bits == 16u ? I2C_MEMADD_SIZE_16BIT : I2C_MEMADD_SIZE_8BIT),
+                            data, size, timeout) == HAL_OK;
 }
 
-bool bsp_i2c_write(I2C_HandleTypeDef *bus, uint16_t address, uint8_t offset, const uint8_t *data,
-                   uint16_t size, uint32_t timeout)
+bool bsp_i2c_write(I2C_HandleTypeDef *bus, uint16_t address, uint16_t offset, uint16_t address_bits,
+                   const uint8_t *data, uint16_t size, uint32_t timeout)
 {
-    return HAL_I2C_Mem_Write(bus, address, offset, I2C_MEMADD_SIZE_8BIT, (uint8_t *)data, size,
-                             timeout) == HAL_OK;
+    return HAL_I2C_Mem_Write(bus, address, offset,
+                             (address_bits == 16u ? I2C_MEMADD_SIZE_16BIT : I2C_MEMADD_SIZE_8BIT),
+                             (uint8_t *)data, size, timeout) == HAL_OK;
 }
 
 bool bsp_i2c_ready(I2C_HandleTypeDef *bus, uint16_t address, uint32_t timeout)

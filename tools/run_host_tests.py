@@ -7,9 +7,14 @@ import tempfile
 root = pathlib.Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--cc", default="cc")
+parser.add_argument("--eeprom", choices=["2", "64"], default="64")
 args = parser.parse_args()
 
 TESTS = {
+    "test_display": ["tests/test_display.c", "stm32f103/app/display/display.c",
+                     "stm32f103/app/gas/gas.c", "stm32f103/app/config/config.c",
+                     "stm32f103/app/history/history.c"],
+    "test_eeprom": ["tests/test_eeprom.c", "stm32f103/bsp/bsp_eeprom.c"],
     "test_alarm": ["tests/test_alarm.c", "stm32f103/app/alarm/alarm.c",
                    "stm32f103/app/gas/gas.c", "stm32f103/app/config/config.c"],
     "test_gas": ["tests/test_gas.c",
@@ -34,11 +39,11 @@ with tempfile.TemporaryDirectory(prefix="gas-tests-") as folder:
             # without a BOM, as the rest of the repository is. Without it MSVC
             # decodes them as the local code page and C4819 becomes an error
             # under /WX. The cross build needs nothing: gcc assumes UTF-8.
-            command = [args.cc, "/nologo", "/std:c11", "/W4", "/WX", "/utf-8",
-                       f"/I{root / 'stm32f103/app'}", f"/I{root / 'stm32f103/bsp'}", *map(str, paths), f"/Fe:{exe}"]
+            command = [args.cc, "/nologo", "/std:c11", "/W4", "/WX", "/utf-8", f"/DEEPROM_MODEL={args.eeprom}",
+                       f"/I{root / 'tests/stubs'}", f"/I{root / 'stm32f103/app'}", f"/I{root / 'stm32f103/bsp'}", *map(str, paths), f"/Fe:{exe}"]
         else:
-            command = [args.cc, "-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic",
-                       f"-I{root / 'stm32f103/app'}", f"-I{root / 'stm32f103/bsp'}", *map(str, paths), "-o", str(exe)]
+            command = [args.cc, "-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic", f"-DEEPROM_MODEL={args.eeprom}",
+                       f"-I{root / 'tests/stubs'}", f"-I{root / 'stm32f103/app'}", f"-I{root / 'stm32f103/bsp'}", *map(str, paths), "-o", str(exe)]
         subprocess.run(command, cwd=folder, check=True)
         subprocess.run([str(exe)], cwd=folder, check=True)
 

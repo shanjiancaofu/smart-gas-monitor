@@ -108,7 +108,7 @@ bool history_init(history_t *h, const config_io_t *io)
     h->next_seq = (uint16_t)(h->next_seq + 1u);
     /* 最新一条之后的那个槽位既是最旧的一条，也是下一个要写的槽位，
      * 无论记录是否已经回绕。 */
-    h->next_slot = (uint8_t)((newest + 1u) % HISTORY_SLOTS);
+    h->next_slot = (uint16_t)((newest + 1u) % HISTORY_SLOTS);
     return true;
 }
 
@@ -139,11 +139,11 @@ bool history_add(history_t *h, history_entry_t *entry)
     if (h->count < HISTORY_SLOTS) {
         ++h->count;
     }
-    h->next_slot = (uint8_t)((slot + 1u) % HISTORY_SLOTS);
+    h->next_slot = (uint16_t)((slot + 1u) % HISTORY_SLOTS);
     return true;
 }
 
-uint8_t history_count(const history_t *h)
+uint16_t history_count(const history_t *h)
 {
     return h->count;
 }
@@ -168,7 +168,7 @@ bool history_clear(history_t *h)
     return true;
 }
 
-bool history_get(const history_t *h, uint8_t index, history_entry_t *out)
+bool history_get(const history_t *h, uint16_t index, history_entry_t *out)
 {
     unsigned slot;
     if (index >= h->count || h->io == NULL || h->io->read == NULL) {

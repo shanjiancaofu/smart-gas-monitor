@@ -1,13 +1,13 @@
-# 应用业务层
+# 应用层
 
-| 文件 | 职责 |
-| --- | --- |
-| app.c/.h | `app_init()` 初始化，`app_update()` 调度任务；应用实例与外设句柄不对 main 暴露 |
-| gas/gas.c/.h | MQ 通道映射、8 次平均、阈值判断、状态机和安全锁存；不操作 GPIO |
-| alarm/alarm.c/.h | 按状态决定 LED、蜂鸣器和继电器；按 TIM2 tick 控制响铃窗口 |
-| config/config.c/.h | 配置结构、默认值、范围校验、蜂鸣器换算、EEPROM 双副本编码 |
-| history/history.c/.h | 历史记录添加、读取、清除；不改配置区 |
-| protocol/protocol.c/.h | 解析文本命令，调用业务接口；不直接操作继电器 |
-| display/display.c/.h | 实时、设置、历史页面；持有组合层建好的 `bsp_oled_t *`，只画不建 |
+应用层只处理业务和调度，不直接读写 GPIO、ADC、I2C 或 UART。
 
-依赖方向：main → app → 业务模块 → BSP → HAL。gas/config/history/protocol 保持不依赖 HAL；alarm 调用 BSP 输出，display 调用 BSP OLED。BSP 之间只有 `bsp_oled`/`bsp_at24c02` 共用 `bsp_i2c`，其余互不调用——输出类驱动互不认识，谁亮谁响由 alarm 判断。配置以 `gas_config_t` 保存在运行状态中，config 模块负责类型与存储，不复制第二份运行配置。
+- `app.c/.h`：应用实例、初始化和 `app_update()` 调度。
+- `gas/`：三路气体映射、八次平均、阈值判断、状态机和 lockout。
+- `alarm/`：按状态和报警传感器数量决定 LED、继电器和蜂鸣器节奏。
+- `config/`：参数结构、默认值、范围校验、CRC 和 EEPROM 双副本。
+- `history/`：报警事件添加、读取和清除。
+- `protocol/`：USB-TTL 与 HC-05 共用文本协议。
+- `display/`：实时、设置、历史、系统和报警页面。
+
+依赖方向为 `main → app → 业务模块 → bsp → HAL`。`gas`、`config`、`history`、`protocol` 保持 HAL 无关，便于主机测试。

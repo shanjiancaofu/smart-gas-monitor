@@ -105,10 +105,10 @@ const char *gas_channel_name(gas_channel_t channel)
     switch (channel) {
     case GAS_MQ4:
         return "MQ4";
+    case GAS_MQ6:
+        return "MQ6";
     case GAS_MQ7:
         return "MQ7";
-    case GAS_MQ8:
-        return "MQ8";
     default:
         break;
     }
@@ -262,30 +262,41 @@ void gas_sample(gas_t *m, const uint16_t adc[GAS_COUNT], bool valid, uint32_t no
     }
     gas_update(m, now);
 }
+/* 设置页里按 KEY3/KEY4 时，改的是当前选中项。前三项的编号与通道编号一致，所以
+ * item 直接就是 alarm[] 的下标。 */
+static void item_step(gas_t *m, bool up, uint32_t now)
+{
+    switch (m->item) {
+    case GAS_ITEM_MQ4:
+    case GAS_ITEM_MQ6:
+    case GAS_ITEM_MQ7:
+        if (threshold_step(&m->config.alarm[m->item], up)) {
+            config_changed(m, now);
+        }
+        break;
+    case GAS_ITEM_PERIOD:
+        if (period_step(&m->config.sample_period_ms, up)) {
+            config_changed(m, now);
+        }
+        break;
+    default: /* GAS_ITEM_BUZZER */
+        /* 只记账，不重启安全窗口——理由见 config_changed()。 */
+        if (buzzer_step(&m->config.buzzer, up)) {
+            mark_dirty(m, now);
+        }
+        break;
+    }
+}
+
+/* 设置项的增减只由设置页分发；KEY4 永远只尝试安全解除。 */
 void gas_key(gas_t *m, unsigned key, uint32_t now)
 {
     gas_update(m, now);
-    if (key == 1) {
-        m->selected = (uint8_t)((m->selected + 1u) % GAS_SEL_COUNT);
-    } else if (key == 2 || key == 3) {
-        bool up = key == 2;
-        /* 按名字判断选中项，而不是用「只要不是 MAIN」：正是这个上界把
-         * selected - 1 约束在 alarm[] 之内。 */
-        if (m->selected == GAS_SEL_PERIOD) {
-            if (period_step(&m->config.sample_period_ms, up)) {
-                config_changed(m, now);
-            }
-        } else if (m->selected >= GAS_SEL_MQ4 && m->selected <= GAS_SEL_MQ8) {
-            if (threshold_step(&m->config.alarm[m->selected - 1u], up)) {
-                config_changed(m, now);
-            }
-        } else if (m->selected == GAS_SEL_BUZZER) {
-            /* 只记账，不重启安全窗口——理由见 config_changed()。 */
-            if (buzzer_step(&m->config.buzzer, up)) {
-                mark_dirty(m, now);
-            }
-        }
-    } else if (key == 4 && m->reset_ready && m->state == GAS_SAFE_WAIT) {
+    if (key == GAS_KEY_SELECT) {
+        m->item = (uint8_t)((m->item + 1u) % GAS_ITEM_COUNT);
+    } else if (key == GAS_KEY_UP || key == GAS_KEY_DOWN) {
+        item_step(m, key == GAS_KEY_UP, now);
+    } else if (key == GAS_KEY_CONFIRM && m->state == GAS_SAFE_WAIT && m->reset_ready) {
         clear_lockout(m, now);
         gas_update(m, now);
     }

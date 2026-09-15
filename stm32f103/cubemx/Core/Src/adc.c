@@ -87,7 +87,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     PA1     ------> ADC1_IN1
     PA4     ------> ADC1_IN4
     */
-    GPIO_InitStruct.Pin = MQ4_AO_Pin|MQ7_AO_Pin|MQ8_AO_Pin;
+    GPIO_InitStruct.Pin = MQ4_AO_Pin|MQ6_AO_Pin|MQ7_AO_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -113,7 +113,7 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* adcHandle)
     PA1     ------> ADC1_IN1
     PA4     ------> ADC1_IN4
     */
-    HAL_GPIO_DeInit(GPIOA, MQ4_AO_Pin|MQ7_AO_Pin|MQ8_AO_Pin);
+    HAL_GPIO_DeInit(GPIOA, MQ4_AO_Pin|MQ6_AO_Pin|MQ7_AO_Pin);
 
   /* USER CODE BEGIN ADC1_MspDeInit 1 */
 

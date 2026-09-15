@@ -68,6 +68,12 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : KEY5_Pin */
+  GPIO_InitStruct.Pin = KEY5_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(KEY5_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : LED_GREEN_Pin LED_YELLOW_Pin */
   GPIO_InitStruct.Pin = LED_GREEN_Pin|LED_YELLOW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;

@@ -172,7 +172,7 @@ void protocol_command(protocol_t *p, const char *line, uint32_t now)
         p->job = PROTOCOL_CONFIG;
     } else if (count == 1u && strcmp(tokens[0], "HISTORY?") == 0) {
         p->job = PROTOCOL_HISTORY;
-        p->count = history_count(p->history);
+        p->count = (uint16_t)history_count(p->history);
     } else if (count == 3u && strcmp(tokens[0], "SET") == 0) {
         gas_channel_t channel;
         uint16_t value;
@@ -233,8 +233,8 @@ const char *protocol_next(protocol_t *p)
         gas_alarm_mask_name(m->alarm_mask, mask, sizeof(mask));
         /* 主动推送，这样盯着这条链路的手机不必轮询就能知道发生了报警。 */
         (void)snprintf(p->text, sizeof(p->text), "ALARM %s %s=%u %s=%u %s=%u", mask,
-                       gas_channel_name(GAS_MQ4), m->adc[GAS_MQ4], gas_channel_name(GAS_MQ7),
-                       m->adc[GAS_MQ7], gas_channel_name(GAS_MQ8), m->adc[GAS_MQ8]);
+                       gas_channel_name(GAS_MQ4), m->adc[GAS_MQ4], gas_channel_name(GAS_MQ6),
+                       m->adc[GAS_MQ6], gas_channel_name(GAS_MQ7), m->adc[GAS_MQ7]);
         p->job = PROTOCOL_IDLE;
         return p->text;
     }
@@ -246,8 +246,8 @@ const char *protocol_next(protocol_t *p)
         } else if (p->line == 1u) {
             (void)snprintf(p->text, sizeof(p->text), "%s=%u/%u %s=%u/%u %s=%u/%u",
                            gas_channel_name(GAS_MQ4), m->adc[GAS_MQ4], m->config.alarm[GAS_MQ4],
-                           gas_channel_name(GAS_MQ7), m->adc[GAS_MQ7], m->config.alarm[GAS_MQ7],
-                           gas_channel_name(GAS_MQ8), m->adc[GAS_MQ8], m->config.alarm[GAS_MQ8]);
+                           gas_channel_name(GAS_MQ6), m->adc[GAS_MQ6], m->config.alarm[GAS_MQ6],
+                           gas_channel_name(GAS_MQ7), m->adc[GAS_MQ7], m->config.alarm[GAS_MQ7]);
         } else {
             p->job = PROTOCOL_IDLE;
             p->line = 0u;
@@ -261,8 +261,8 @@ const char *protocol_next(protocol_t *p)
             config_buzzer_name(m->config.buzzer, buzz, sizeof(buzz));
             (void)snprintf(p->text, sizeof(p->text), "TH %s=%u %s=%u %s=%u PERIOD=%u BUZZ=%s",
                            gas_channel_name(GAS_MQ4), m->config.alarm[GAS_MQ4],
+                           gas_channel_name(GAS_MQ6), m->config.alarm[GAS_MQ6],
                            gas_channel_name(GAS_MQ7), m->config.alarm[GAS_MQ7],
-                           gas_channel_name(GAS_MQ8), m->config.alarm[GAS_MQ8],
                            m->config.sample_period_ms, buzz);
         } else {
             p->job = PROTOCOL_IDLE;
@@ -277,7 +277,7 @@ const char *protocol_next(protocol_t *p)
                            (unsigned)HISTORY_SLOTS);
         } else {
             history_entry_t entry;
-            uint8_t index = (uint8_t)(p->line - 1u);
+            uint16_t index = (uint16_t)(p->line - 1u);
             char mask[16];
             if (index >= p->count) {
                 p->job = PROTOCOL_IDLE;
@@ -293,8 +293,8 @@ const char *protocol_next(protocol_t *p)
                 (void)snprintf(
                     p->text, sizeof(p->text), "%u SEQ=%u %s=%u %s=%u %s=%u ALARM=%s UP=%lu",
                     index + 1u, entry.seq, gas_channel_name(GAS_MQ4), entry.adc[GAS_MQ4],
-                    gas_channel_name(GAS_MQ7), entry.adc[GAS_MQ7], gas_channel_name(GAS_MQ8),
-                    entry.adc[GAS_MQ8], mask, (unsigned long)entry.uptime_s);
+                    gas_channel_name(GAS_MQ6), entry.adc[GAS_MQ6], gas_channel_name(GAS_MQ7),
+                    entry.adc[GAS_MQ7], mask, (unsigned long)entry.uptime_s);
             }
         }
         ++p->line;

@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "bsp_eeprom_config.h"
 
 #define GAS_COUNT 3u
 

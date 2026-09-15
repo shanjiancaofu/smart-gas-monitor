@@ -35,7 +35,29 @@ void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick)
     } else {
         bsp_relay_close();
     }
-    bsp_buzzer_set(active && (duration == GAS_BUZZER_FOREVER_MS ||
-                              (uint32_t)(tick - alarm->started_tick) < duration / GAS_TICK_MS));
+    bool buzzer = false;
+    if (active && (duration == GAS_BUZZER_FOREVER_MS ||
+                   (uint32_t)(tick - alarm->started_tick) < duration / GAS_TICK_MS)) {
+        unsigned count = 0;
+        uint32_t elapsed = tick - alarm->started_tick;
+        uint32_t phase;
+        for (unsigned i = 0; i < GAS_COUNT; ++i) {
+            if (gas->alarm_mask & (1u << i)) {
+                ++count;
+            }
+        }
+        if (count == 0) {
+            count = 1;
+        }
+        /* 每个“滴”响 100 ms，间隔 50 ms；报警传感器越多，一轮里的滴声越多。 */
+        phase = elapsed % (count * 30u + 68u);
+        for (unsigned i = 0; i < count; ++i) {
+            uint32_t start = i * 30u;
+            if (phase >= start && phase < start + 18u) {
+                buzzer = true;
+            }
+        }
+    }
+    bsp_buzzer_set(buzzer);
     bsp_led_set(gas->state == GAS_NORMAL, !active && gas->state != GAS_NORMAL, active, open);
 }

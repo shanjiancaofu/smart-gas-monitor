@@ -59,10 +59,10 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define MQ4_AO_Pin GPIO_PIN_0
 #define MQ4_AO_GPIO_Port GPIOA
-#define MQ7_AO_Pin GPIO_PIN_1
+#define MQ6_AO_Pin GPIO_PIN_1
+#define MQ6_AO_GPIO_Port GPIOA
+#define MQ7_AO_Pin GPIO_PIN_4
 #define MQ7_AO_GPIO_Port GPIOA
-#define MQ8_AO_Pin GPIO_PIN_4
-#define MQ8_AO_GPIO_Port GPIOA
 #define VALVE_LED_Pin GPIO_PIN_5
 #define VALVE_LED_GPIO_Port GPIOA
 #define LED_RED_Pin GPIO_PIN_6
@@ -83,6 +83,8 @@ void Error_Handler(void);
 #define KEY4_EXTI_IRQn EXTI15_10_IRQn
 #define RELAY_Pin GPIO_PIN_8
 #define RELAY_GPIO_Port GPIOA
+#define KEY5_Pin GPIO_PIN_5
+#define KEY5_GPIO_Port GPIOB
 #define LED_GREEN_Pin GPIO_PIN_8
 #define LED_GREEN_GPIO_Port GPIOB
 #define LED_YELLOW_Pin GPIO_PIN_9

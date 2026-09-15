@@ -66,7 +66,7 @@ uint16_t config_buzzer_duration_ms(const gas_config_t *config)
  * 字段整体前移，是为了让其余字段的偏移和 v4 保持一致。 */
 #define CONFIG_SLOT_SIZE 16u
 #define CONFIG_MAGIC 0xa5u
-#define CONFIG_VERSION 5u
+#define CONFIG_VERSION 6u
 #define CONFIG_COMMIT 0x5au
 
 static uint16_t crc16(const uint8_t *p, unsigned n)

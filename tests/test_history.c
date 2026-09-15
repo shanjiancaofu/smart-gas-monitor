@@ -4,12 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 
-typedef struct { uint8_t data[256]; int budget; } fake_t;
+typedef struct { uint8_t data[8192]; int budget; } fake_t;
 
 static bool read_mem(void *ctx, uint16_t addr, uint8_t *data, size_t size)
 {
     fake_t *f = ctx;
-    assert((size_t)addr + size <= 256);
+    assert((size_t)addr + size <= 8192);
     memcpy(data, f->data + addr, size);
     return true;
 }
@@ -17,7 +17,7 @@ static bool write_mem(void *ctx, uint16_t addr, const uint8_t *data, size_t size
 {
     fake_t *f = ctx;
     size_t i;
-    assert((size_t)addr + size <= 256);
+    assert((size_t)addr + size <= 8192);
     for (i = 0; i < size; ++i) {
         if (f->budget == 0) return false;
         if (f->budget > 0) --f->budget;
@@ -31,8 +31,8 @@ static history_entry_t make(uint16_t mq4, uint32_t uptime_s, uint8_t mask)
     history_entry_t e;
     memset(&e, 0, sizeof(e));
     e.adc[GAS_MQ4] = mq4;
-    e.adc[GAS_MQ7] = (uint16_t)(mq4 + 100u);
-    e.adc[GAS_MQ8] = (uint16_t)(mq4 + 200u);
+    e.adc[GAS_MQ6] = (uint16_t)(mq4 + 100u);
+    e.adc[GAS_MQ6] = (uint16_t)(mq4 + 200u);
     e.uptime_s = uptime_s;
     e.alarm_mask = mask;
     return e;
@@ -41,7 +41,7 @@ static history_entry_t make(uint16_t mq4, uint32_t uptime_s, uint8_t mask)
 /* 记录区不得越出分配给它的那半个 EEPROM。 */
 static void test_region(void)
 {
-    assert(HISTORY_BASE + HISTORY_SLOTS * HISTORY_SLOT_SIZE == 256u);
+    assert(HISTORY_BASE + HISTORY_SLOTS * HISTORY_SLOT_SIZE == EEPROM_CAPACITY);
     assert(HISTORY_BASE >= 0x20u);
 }
 
@@ -109,19 +109,19 @@ static void test_wraparound(void)
         assert(history_add(&h, &e));
     }
     assert(history_count(&h) == HISTORY_SLOTS);
-    assert(history_get(&h, 0u, &e) && e.seq == 29u && e.adc[GAS_MQ4] == 28u);
-    assert(history_get(&h, HISTORY_SLOTS - 1u, &e) && e.seq == 16u);
+    assert(history_get(&h, 0u, &e) && e.seq == (uint16_t)(HISTORY_SLOTS * 2u + 1u) && e.adc[GAS_MQ4] == (uint16_t)(HISTORY_SLOTS * 2u));
+    assert(history_get(&h, HISTORY_SLOTS - 1u, &e) && e.seq == (uint16_t)(HISTORY_SLOTS + 2u));
     assert(!history_get(&h, HISTORY_SLOTS, &e));
     /* 重新装载的结果必须和运行中的状态一致，包括下一个该用哪个槽，否则重启
      * 后的第一条记录会盖掉一条还有效的记录。 */
     assert(history_init(&h, &io));
     assert(history_count(&h) == HISTORY_SLOTS);
-    assert(history_get(&h, 0u, &e) && e.seq == 29u);
+    assert(history_get(&h, 0u, &e) && e.seq == (uint16_t)(HISTORY_SLOTS * 2u + 1u));
     e = make(999u, 9u, 1u);
     assert(history_add(&h, &e));
-    assert(e.seq == 30u);
-    assert(history_get(&h, 0u, &e) && e.seq == 30u && e.adc[GAS_MQ4] == 999u);
-    assert(history_get(&h, HISTORY_SLOTS - 1u, &e) && e.seq == 17u);
+    assert(e.seq == (uint16_t)(HISTORY_SLOTS * 2u + 2u));
+    assert(history_get(&h, 0u, &e) && e.seq == (uint16_t)(HISTORY_SLOTS * 2u + 2u) && e.adc[GAS_MQ4] == 999u);
+    assert(history_get(&h, HISTORY_SLOTS - 1u, &e) && e.seq == (uint16_t)(HISTORY_SLOTS + 3u));
 }
 
 static void test_torn_and_corrupt(void)
