@@ -1,0 +1,33 @@
+﻿set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR arm)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+if(WIN32)
+  set(_suffix ".exe")
+else()
+  set(_suffix "")
+endif()
+
+set(ARM_GCC_PATH "$ENV{ARM_GCC_PATH}" CACHE FILEPATH "Full path to arm-none-eabi-gcc")
+set(ARM_GNU_TOOLCHAIN_ROOT "$ENV{ARM_GNU_TOOLCHAIN_ROOT}" CACHE PATH "GNU Arm toolchain root containing bin")
+
+if(ARM_GCC_PATH)
+  get_filename_component(_arm_bin "${ARM_GCC_PATH}" DIRECTORY)
+elseif(ARM_GNU_TOOLCHAIN_ROOT)
+  set(_arm_bin "${ARM_GNU_TOOLCHAIN_ROOT}/bin")
+else()
+  find_program(_arm_gcc NAMES arm-none-eabi-gcc)
+  if(_arm_gcc)
+    get_filename_component(_arm_bin "${_arm_gcc}" DIRECTORY)
+  endif()
+endif()
+
+set(_arm_gcc "${_arm_bin}/arm-none-eabi-gcc${_suffix}")
+if(NOT EXISTS "${_arm_gcc}")
+  message(FATAL_ERROR "GNU Arm compiler not found. Put arm-none-eabi-gcc on PATH or set ARM_GCC_PATH.")
+endif()
+
+set(CMAKE_C_COMPILER "${_arm_gcc}" CACHE FILEPATH "" FORCE)
+set(CMAKE_ASM_COMPILER "${_arm_gcc}" CACHE FILEPATH "" FORCE)
+set(CMAKE_OBJCOPY "${_arm_bin}/arm-none-eabi-objcopy${_suffix}" CACHE FILEPATH "" FORCE)
+set(CMAKE_SIZE "${_arm_bin}/arm-none-eabi-size${_suffix}" CACHE FILEPATH "" FORCE)
