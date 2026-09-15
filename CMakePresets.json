@@ -1,12 +1,42 @@
-﻿{
+{
   "version": 3,
-  "cmakeMinimumRequired": {"major": 3, "minor": 22, "patch": 0},
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
   "configurePresets": [
-    {"name":"arm-debug","generator":"Ninja","binaryDir":"${sourceDir}/build/arm-debug","toolchainFile":"${sourceDir}/cmake/arm-none-eabi-gcc.cmake","cacheVariables":{"CMAKE_BUILD_TYPE":"Debug","CMAKE_EXPORT_COMPILE_COMMANDS":"ON"}},
-    {"name":"arm-release","generator":"Ninja","binaryDir":"${sourceDir}/build/arm-release","toolchainFile":"${sourceDir}/cmake/arm-none-eabi-gcc.cmake","cacheVariables":{"CMAKE_BUILD_TYPE":"Release","CMAKE_EXPORT_COMPILE_COMMANDS":"ON"}}
+    {
+      "name": "arm-debug",
+      "displayName": "STM32F103 Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/arm-debug",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi-gcc.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "arm-release",
+      "displayName": "STM32F103 Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/arm-release",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi-gcc.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
   ],
   "buildPresets": [
-    {"name":"arm-debug","configurePreset":"arm-debug"},
-    {"name":"arm-release","configurePreset":"arm-release"}
+    {
+      "name": "arm-debug",
+      "configurePreset": "arm-debug"
+    },
+    {
+      "name": "arm-release",
+      "configurePreset": "arm-release"
+    }
   ]
 }

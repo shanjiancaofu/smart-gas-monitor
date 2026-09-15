@@ -3,45 +3,65 @@
 基于 STM32F103C8T6 的裸机燃气监测系统，代码按 `main → app → bsp → HAL` 分层。
 
 ```text
-stm32f103/
-├── app/      # gas、alarm、config、history、protocol、display
-├── bsp/      # ADC、UART、I2C、OLED、按键、LED、蜂鸣器、继电器、EEPROM
-└── cubemx/   # CubeMX 工程和 HAL
+smart-gas-monitor/
+├── CMakeLists.txt
+├── CMakePresets.json
+├── cmake/
+│   └── arm-none-eabi-gcc.cmake
+├── stm32f103/
+│   ├── app/
+│   ├── bsp/
+│   └── cubemx/
+├── tests/
+├── tools/
+└── build/                    # 生成目录，不提交 Git
+    ├── arm-debug/
+    └── arm-release/
 ```
 
-当前功能包括 MQ4/MQ6/MQ7 三路八次平均采样、五键交互、OLED 页面、TIM2 10 ms 节拍、AT24C64 参数和报警历史、lockout、防误开阀、多传感器蜂鸣器节奏和 USART1/HC-05 文本协议。
+当前功能包括 MQ4/MQ6/MQ7 三路采样、五键交互、OLED 页面、TIM2 节拍、AT24C64 参数与报警历史、lockout、多传感器蜂鸣器节奏以及 USART1/HC-05 文本协议。
 
-## 构建
+## 工具要求
 
-Debug：
+- CMake 3.22 或更高版本
+- Ninja
+- GNU Arm Embedded Toolchain，包含 `arm-none-eabi-gcc`
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .uild.ps1 -Configuration Debug -Jobs 4
+将工具加入 `PATH`。也可以设置 `ARM_GNU_TOOLCHAIN_ROOT`，其目录下应包含 `bin/arm-none-eabi-gcc`。
+
+## Debug 构建
+
+```sh
+cmake --preset arm-debug
+cmake --build --preset arm-debug --parallel 4
 ```
 
-Release：
+## Release 构建
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .uild.ps1 -Configuration Release -Jobs 4
+```sh
+cmake --preset arm-release
+cmake --build --preset arm-release --parallel 4
 ```
 
-产物分别位于：
+产物分别位于 `build/arm-debug/` 和 `build/arm-release/`，文件名包含本次配置时间：
 
 ```text
-build/debug/
-build/release/
+smart_gas_monitor_YYYYMMDD_HHMMSS.elf
+smart_gas_monitor_YYYYMMDD_HHMMSS.hex
+smart_gas_monitor_YYYYMMDD_HHMMSS.bin
+smart_gas_monitor_YYYYMMDD_HHMMSS.map
 ```
 
-每个目录包含 `smart_gas_monitor.elf`、`.hex`、`.bin` 和 `.map`。CubeMX 中间文件位于 `stm32f103/cubemx/build/`，一般不作为交付目录使用。
+每次重新执行 `cmake --preset ...` 会更新文件时间戳，并清理该配置目录中的上一组固件文件。
 
 ## 主机测试
 
-```powershell
-python tools/run_host_tests.py --cc cl
-python tools/run_host_tests.py --cc cl --eeprom 2
+```sh
+python tools/run_host_tests.py --cc gcc
+python tools/run_host_tests.py --cc gcc --eeprom 2
 ```
 
-两种 EEPROM 模式均覆盖报警、气体状态、配置、历史、协议、页面和分页地址测试。
+Windows 的 Visual Studio Native Tools 环境也可以使用 `--cc cl`。
 
 ## 文档
 

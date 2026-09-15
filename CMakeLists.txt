@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.22)
-project(smart_gas_monitor C ASM)
+project(smart_gas_monitor LANGUAGES C ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
@@ -53,10 +53,19 @@ set(APP_SOURCES
   ${CUBEMX_ROOT}/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c
 )
 set(STARTUP ${CUBEMX_ROOT}/startup_stm32f103xb.s)
-string(TIMESTAMP BUILD_TIMESTAMP "%Y%m%d_%H%M%S" UTC)
+file(GLOB OLD_FIRMWARE_ARTIFACTS
+  "${CMAKE_BINARY_DIR}/smart_gas_monitor_20*"
+  "${CMAKE_BINARY_DIR}/smart_gas_monitor_*.elf"
+  "${CMAKE_BINARY_DIR}/smart_gas_monitor_*.hex"
+  "${CMAKE_BINARY_DIR}/smart_gas_monitor_*.bin"
+  "${CMAKE_BINARY_DIR}/smart_gas_monitor_*.map")
+file(REMOVE ${OLD_FIRMWARE_ARTIFACTS})
+string(TIMESTAMP BUILD_TIMESTAMP "%Y%m%d_%H%M%S")
 set(FIRMWARE_BASENAME "smart_gas_monitor_${BUILD_TIMESTAMP}")
 add_executable(smart_gas_monitor ${APP_SOURCES} ${STARTUP})
-set_target_properties(smart_gas_monitor PROPERTIES OUTPUT_NAME "${FIRMWARE_BASENAME}")
+set_target_properties(smart_gas_monitor PROPERTIES
+  OUTPUT_NAME "${FIRMWARE_BASENAME}"
+  SUFFIX ".elf")
 target_include_directories(smart_gas_monitor PRIVATE
   ${CUBEMX_ROOT}/Core/Inc
   ${CUBEMX_ROOT}/Drivers/STM32F1xx_HAL_Driver/Inc
