@@ -24,10 +24,14 @@ typedef struct {
     /* 每个 page 占一位，绘制时置位、flush 时清除。重画时钟、或只重画一个变化的
      * 数字时，不必把 1 KB 全都推上总线。 */
     uint8_t dirty;
+    /* 初始化是否成功。记在这里，使调用方不必自己留一份副本。 */
+    bool ready;
 } bsp_oled_t;
 
 /* 执行上电初始化序列，并把面板清空。 */
 bool bsp_oled_init(bsp_oled_t *oled, I2C_HandleTypeDef *i2c);
+/* 上一次 bsp_oled_init() 是否成功。面板没就绪时后续调用应当直接跳过。 */
+bool bsp_oled_is_ready(const bsp_oled_t *oled);
 /* 清空后备缓冲；面板要等下一次 flush 才跟着变。 */
 void bsp_oled_clear(bsp_oled_t *oled);
 /* 只把自上次调用以来发生变化的 page 发出去。 */

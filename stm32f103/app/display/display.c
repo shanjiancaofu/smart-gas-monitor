@@ -27,7 +27,7 @@ static void put(display_t *d, unsigned page, bool large, const char *text)
     memcpy(row, text, n);
     memset(row + n, ' ', cols - n);
     row[cols] = '\0';
-    bsp_oled_text(&d->oled, 0u, page, row, large);
+    bsp_oled_text(d->oled, 0u, page, row, large);
 }
 
 static void putf(display_t *d, unsigned page, bool large, const char *format, ...)
@@ -118,17 +118,17 @@ static void draw_history(display_t *d, const history_t *h)
     putf(d, 7u, false, "KEY2 NEWER KEY3 OLD");
 }
 
-void display_init(display_t *d, I2C_HandleTypeDef *i2c)
+void display_init(display_t *d, bsp_oled_t *oled)
 {
     memset(d, 0, sizeof(*d));
-    d->ready = bsp_oled_init(&d->oled, i2c);
+    d->oled = oled;
     d->screen = (uint8_t)-1;
 }
 
 void display_update(display_t *d, const gas_t *m, const history_t *h, bool storage_ok, uint32_t now)
 {
     uint8_t screen;
-    if (!d->ready) {
+    if (!bsp_oled_is_ready(d->oled)) {
         return;
     }
     screen = m->selected == GAS_SEL_HISTORY ? SCREEN_HISTORY
@@ -140,7 +140,7 @@ void display_update(display_t *d, const gas_t *m, const history_t *h, bool stora
     /* 切换页面会留下新页面不绘制的行，所以缓冲区先清空，而不是依赖每个
      * 页面都覆盖全部八行。 */
     if (screen != d->screen) {
-        bsp_oled_clear(&d->oled);
+        bsp_oled_clear(d->oled);
         /* 浏览位置按每次进入页面重置：再次进入该页应显示最新一条报警，
          * 而不是上次离开时的位置。 */
         if (screen == SCREEN_HISTORY) {
@@ -158,7 +158,7 @@ void display_update(display_t *d, const gas_t *m, const history_t *h, bool stora
         draw_realtime(d, m);
         break;
     }
-    bsp_oled_flush(&d->oled);
+    bsp_oled_flush(d->oled);
     d->screen = screen;
     d->last_draw_ms = now;
 }

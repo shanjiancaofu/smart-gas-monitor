@@ -12,15 +12,17 @@
 #define DISPLAY_REFRESH_MS 200u
 
 typedef struct {
-    bsp_oled_t oled;
+    /* 指向组合层持有的那块面板，本模块只画，不负责建。 */
+    bsp_oled_t *oled;
     /* 历史界面显示哪一条记录。0 表示最新的一条。 */
     uint8_t history_index;
     uint8_t screen;
-    bool ready;
     uint32_t last_draw_ms;
 } display_t;
 
-void display_init(display_t *d, I2C_HandleTypeDef *i2c);
+/* 只记下面板对象，不初始化它：建面板是 BSP 的活，组合层做。
+ * 面板未就绪时 display_update() 自己会跳过，不需要调用方先判断。 */
+void display_init(display_t *d, bsp_oled_t *oled);
 /* 绘制选择器当前所在的界面，即三个界面之一。 */
 void display_update(display_t *d, const gas_t *m, const history_t *h, bool storage_ok,
                     uint32_t now);

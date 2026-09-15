@@ -293,12 +293,19 @@ bool bsp_oled_init(bsp_oled_t *oled, I2C_HandleTypeDef *i2c)
 {
     memset(oled, 0, sizeof(*oled));
     oled->i2c = i2c;
+    /* 失败时提前返回，ready 保持 memset 清零的状态。 */
     if (!command_list(oled, init_sequence, sizeof(init_sequence))) {
         return false;
     }
     bsp_oled_clear(oled);
     bsp_oled_flush(oled);
+    oled->ready = true;
     return true;
+}
+
+bool bsp_oled_is_ready(const bsp_oled_t *oled)
+{
+    return oled->ready;
 }
 
 void bsp_oled_clear(bsp_oled_t *oled)

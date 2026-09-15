@@ -23,6 +23,7 @@ typedef struct {
     bsp_at24c02_t eeprom;
     config_io_t store;
     history_t history;
+    bsp_oled_t oled;
     display_t display;
     protocol_t protocol;
     /* USB-TTL 适配器和 HC-05 无线链路走同一套协议，因此由同一个解析器驱动。 */
@@ -121,7 +122,11 @@ bool app_init(void)
     (void)history_init(&app->history, &app->store);
     now = HAL_GetTick();
     gas_init(&app->monitor, &config, now);
-    display_init(&app->display, oled);
+    /* 面板在这里建好再交给 display，和 sensor、eeprom、keys 一样由组合层持有。
+     * 结果不上报：display_update() 自己会看 bsp_oled_is_ready()，面板没起来只是
+     * 不画，其余功能不受影响。 */
+    (void)bsp_oled_init(&app->oled, oled);
+    display_init(&app->display, &app->oled);
     protocol_init(&app->protocol, &app->monitor, &app->history);
     bsp_uart_init(&app->link_usb, usb);
     bsp_uart_init(&app->link_radio, radio);

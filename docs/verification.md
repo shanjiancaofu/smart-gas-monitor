@@ -2,6 +2,49 @@
 
 日期：2026-09-15。
 
+## 面板对象移交组合层
+
+`display` 原先内嵌 `bsp_oled_t` 并替它调 `bsp_oled_init()`，接口上收一个
+`I2C_HandleTypeDef *`。现在面板对象由 `app_t` 持有（和 sensor、eeprom、keys、
+两个 uart 一样），`display_t` 只存 `bsp_oled_t *`，`display_init()` 收对象不收句柄，
+自己不再初始化硬件。就绪状态记在 `bsp_oled_t.ready` 里，由 `bsp_oled_is_ready()`
+查询，`display_t` 不再留第二份副本。
+
+先 `make clean` 再从无缓存状态完整构建，并重新运行全部五套 Host Test。
+
+| 检查 | 结果 |
+| --- | --- |
+| ARM 编译和链接 | PASS：GNU Arm 14.3.rel1，Cortex-M3，零 warning/error |
+| 主机 C 单元测试 | PASS：MSVC 19.38，C11，/W4 /WX，五套全部通过 |
+| 实物 / Proteus | NOT VERIFIED |
+
+最终 ARM 构建：text = 28316 bytes，data = 92 bytes，bss = 4156 bytes。BIN 为 28408 bytes。
+
+BIN SHA256：`0f5b3834fcb354ba045ed261d0502e8aef42033b3d09d4b9ae0724c169dd9e73`。
+
+上一轮的 `d9b09b43…`（text = 28336）不再适用。文本段减少 20 字节：`display_init()`
+不再调用 `bsp_oled_init()`，且 `display_t` 少了一个字段。bss 增加 8 字节，是
+`bsp_oled_t` 从 `display_t` 里挪出来、对齐填充变化所致，量级可忽略。
+
+### 本轮的设计核对
+
+- **面板没就绪时行为不变。** 原先 `display_update()` 查 `d->ready`（初始化时缓存
+  下来的结果），现在查 `bsp_oled_is_ready(d->oled)`，而 `bsp_oled_init()` 在**每一条**
+  提前返回的失败路径上都不会把 `ready` 置位（`memset` 清零后只有成功路径才写
+  true）。核对方式：`bsp_oled.c` 里 `oled->ready = true` 只出现在返回 true 之前的
+  那一行。
+- **组合层不替 display 判断就绪。** `app_init()` 对 `bsp_oled_init()` 的结果取
+  `(void)`，因为 `display_update()` 自己会跳过。核对方式：`app.c` 里没有把该结果存进
+  `display_t` 的路径，`display_t` 也确实没有这个字段了。
+- **HAL 依赖没有因此消失。** `display.h` 仍经 `bsp_oled.h` 传递包含 `stm32f1xx_hal.h`
+  （`bsp_oled_t` 里存着 `I2C_HandleTypeDef *`），所以 `display.c` **依然不在主机测试
+  范围内**。这次改动去掉的是 display 接口上的 HAL 类型，不是 HAL 依赖本身——不要
+  把它当成「display 现在可以主机测试了」。
+- **全 app 层只剩 app.c 具名 HAL 类型。** 核对方式：`grep -rn "I2C_HandleTypeDef\|ADC_HandleTypeDef\|UART_HandleTypeDef\|TIM_HandleTypeDef" stm32f103/app/` 只命中 `app.c:95-100`，即取六个 CubeMX 句柄的那六行，这正是组合层该做的事。`display.h`、`alarm.h`、`protocol.h`、`gas.h`、`config.h`、`history.h` 全部没有 HAL 类型。
+- **BSP 互调仍然只有 `bsp_i2c` 一处。** 核对方式：逐文件列 `#include`，只有
+  `bsp_oled.c` 和 `bsp_at24c02.c` 引用 `bsp_i2c.h`；其余七个驱动零交叉引用，且没有
+  任何 BSP 文件引用 app 模块。
+
 ## 目录重构：app 模块与 bsp_* 驱动
 
 `app/` 与 `bsp/` 按职责重新划分为六个业务模块和九个 `bsp_*` 驱动，应用入口改为

@@ -27,6 +27,10 @@ main 的 USER CODE 只调用 `app_init()` 和 `app_update()`；初始化失败�
 
 `alarm_update()` 根据 gas 状态和配置决定输出。蜂鸣器 BSP 只负责 GPIO 开关，响铃持续时间按 TIM2 的 10 ms 节拍在 alarm 层计算。`alarm_force_safe()` 在异常入口关继电器、蜂鸣器与阀门指示；不会访问 I2C 或 EEPROM。
 
+BSP 之间只有一处依赖：`bsp_oled` 和 `bsp_at24c02` 共用 `bsp_i2c`。其余驱动彼此不调用，输出类驱动（`bsp_led`、`bsp_buzzer`、`bsp_relay`）互不认识——「报警时谁亮谁响」是业务判断，在 `alarm.c` 里。`bsp_adc` 不认识 MQ4/MQ7/MQ8 的映射，`bsp_key` 不认识参数，两者都由上层解释。
+
+面板对象由组合层持有并初始化（`app->oled`），`display` 只拿一个指向它的指针，自己不建也不初始化硬件。这样 display 的接口里没有 HAL 类型，它唯一碰的 HAL 是那份传进来的 `I2C_HandleTypeDef`。注意 HAL 头仍会经 `bsp_oled.h` 传递包含进来（`bsp_oled_t` 里存着 I2C 句柄），所以 `display.c` 依然不在主机测试范围内。
+
 `app_update()` 顺序为：采样/状态 → 按键 → 协议 → 报警输出 → 锁存保存 → 历史 → 显示 → 参数延时保存。先输出关阀再执行 EEPROM 写入，避免慢速存储延迟关阀。
 
 ## 外设与时序

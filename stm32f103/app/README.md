@@ -8,6 +8,6 @@
 | config/config.c/.h | 配置结构、默认值、范围校验、蜂鸣器换算、EEPROM 双副本编码 |
 | history/history.c/.h | 历史记录添加、读取、清除；不改配置区 |
 | protocol/protocol.c/.h | 解析文本命令，调用业务接口；不直接操作继电器 |
-| display/display.c/.h | 实时、设置、历史页面；使用 BSP OLED 绘制 |
+| display/display.c/.h | 实时、设置、历史页面；持有组合层建好的 `bsp_oled_t *`，只画不建 |
 
-依赖方向：main → app → 业务模块 → BSP → HAL。gas/config/history/protocol 保持不依赖 HAL；alarm 调用 BSP 输出，display 调用 BSP OLED。配置以 `gas_config_t` 保存在运行状态中，config 模块负责类型与存储，不复制第二份运行配置。
+依赖方向：main → app → 业务模块 → BSP → HAL。gas/config/history/protocol 保持不依赖 HAL；alarm 调用 BSP 输出，display 调用 BSP OLED。BSP 之间只有 `bsp_oled`/`bsp_at24c02` 共用 `bsp_i2c`，其余互不调用——输出类驱动互不认识，谁亮谁响由 alarm 判断。配置以 `gas_config_t` 保存在运行状态中，config 模块负责类型与存储，不复制第二份运行配置。
