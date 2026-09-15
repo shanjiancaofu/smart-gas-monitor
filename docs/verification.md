@@ -2,6 +2,77 @@
 
 日期：2026-09-15。
 
+## 目录重构：app 模块与 bsp_* 驱动
+
+`app/` 与 `bsp/` 按职责重新划分为六个业务模块和九个 `bsp_*` 驱动，应用入口改为
+`app_init()` / `app_update()`。先 `make clean` 再从无缓存状态完整构建，并重新运行
+全部五套 Host Test。
+
+| 检查 | 结果 |
+| --- | --- |
+| ARM 编译和链接 | PASS：GNU Arm 14.3.rel1，Cortex-M3，零 warning/error |
+| 主机 C 单元测试 | PASS：MSVC 19.38，C11，/W4 /WX，`test_alarm`、`test_gas`、`test_config`、`test_history`、`test_protocol` 五套全部通过 |
+| 实物 / Proteus | NOT VERIFIED |
+
+最终 ARM 构建：text = 28336 bytes，data = 92 bytes，bss = 4148 bytes。BIN 为 28428 bytes，占 Flash 64 KB 的 43%，RAM 20 KB 的 20%。
+
+BIN SHA256：`d9b09b43ffbc0527ec97c541b5dea42fb91865b21e6084058fb2d420da2eabe1`。
+
+上一轮的 `488b4224…`（text = 28260）不再适用。文本段增加 76 字节，来自 `bsp_i2c` 的
+一层转发、`alarm` 拆成独立模块、`app.c` 的单例化，以及 `bsp_i2c_ready()` 补上的
+timeout 参数。
+
+### 改名对照
+
+本轮同时把两处名字对齐到新模块名，**内容未变**，只是文件换了名字。本文较早章节里
+出现的旧名是当时的事实，读到时按这张表换算：
+
+| 旧 | 新 |
+| --- | --- |
+| `tests/test_gas_monitor.c` | `tests/test_gas.c` |
+| `tests/test_settings.c` | `tests/test_config.c` |
+| `app/gas/gas_monitor.*` | `app/gas/gas.*` |
+| `app/settings/*` | `app/config/*` |
+| `app/communication/*` | `app/protocol/*` |
+| `bsp/{mq_sensor,serial,ssd1306,at24c02,key,alarm_output}.*` | `bsp/bsp_{adc,uart,oled,at24c02,key}.*`，`alarm_output` 的策略部分移到 `app/alarm/` |
+
+### 本轮的设计核对
+
+这次重构不只是搬文件，有三处是真正的新逻辑，核对的是它们**没有改变行为**：
+
+- **八次平均从 BSP 搬到 app，结果不变。** 原来是 `mq_sensor_read()` 一次填三路并各自
+  平均 8 次；现在是 `bsp_adc_read()` 单路读取、`gas_read_samples()` 在 app 里循环三路
+  并平均。核对方式：`MQ_SENSOR_AVERAGES` 的语义（任一次转换失败即整组作废）在新的
+  `gas_read_samples()` 里保持，`tests/test_gas.c` 的采样相关用例全部沿用上一轮未改。
+- **蜂鸣器计时窗口从 BSP 搬到 `app/alarm/`，结果不变。** 原来那两个 static
+  （`buzzer_alarm` / `buzzer_start_tick`）现在收在 `alarm_t{active, started_tick}` 里，
+  上升沿重置、持续报警不重置、`GAS_BUZZER_FOREVER_MS` 取消上限这三条规则逐条对应。
+  核对方式：新增的 `tests/test_alarm.c` 直接测这段策略，含响应映射、计时窗口、32 位
+  计数回绕、`OFF` 与 `ALWAYS` 两个档位、以及 `alarm_force_safe()`。
+- **`app.c` 变成单例，但被测模块仍可注入。** `app.c` 持有 `static app_t system_app`
+  并直接取 `&hadc1` 等 CubeMX 全局；这只到组合层为止——`gas` / `config` / `history` /
+  `protocol` 一律仍是显式传参，所以五套测试仍能在 PC 上自由造实例、注入合成时间戳
+  （如 `UINT32_MAX - 61000u` 的回绕用例）和伪造 EEPROM 映像。核对方式：这五套测试
+  **一行断言都没改**，本轮全部通过。
+- **两条跨层 `_Static_assert` 的消失是简化，不是丢失覆盖。** 上一轮的
+  `BUZZER_TICK_MS == APP_TICK_MS` 和 `BUZZER_FOREVER == GAS_BUZZER_FOREVER_MS` 已删除：
+  前者的两份定义合并成一份（`app.c:16` 直接 `#define APP_TICK_MS GAS_TICK_MS`），
+  后者在 BSP 侧的那份随 `bsp_buzzer_set(bool)` 的接口简化一起消失，哨兵值只剩
+  `config/config.h` 一处。两处都是「重复定义 + 断言钉住」变成「只有一个定义」，
+  比原来更不容易走散。`GAS_BUZZER_MAX_S * 1000u < GAS_BUZZER_FOREVER_MS` 那条仍在。
+- **`GAS_TICK_MS` 与硬件 TIM2 的关系仍只有文字约定。** `tim.c` 里 `Prescaler = 71`、
+  `Period = 9999`（72 MHz / 72 / 10000 = 10 ms）是 CubeMX 生成区里的字面量，编译期
+  无法与 `config.h` 的 `GAS_TICK_MS` 断言在一起——这一点在重构前后相同，不是本次引入。
+  改 `.ioc` 里的定时器参数时，`GAS_TICK_MS` 要跟着改，否则蜂鸣器时长会静默地不对。
+
+### 顺手修掉的小问题
+
+- `bsp_i2c_ready()` 原先写死 `HAL_I2C_IsDeviceReady(bus, address, 10, 1)`，与同文件的
+  `bsp_i2c_read` / `bsp_i2c_write` 都收 timeout 的约定不一致。现在它也收 timeout，
+  调用方传 `1`，行为与改动前逐字节相同。
+- `config.c` 里的宏前缀由 `SETTINGS_*` 改为 `CONFIG_*`，与模块名一致（纯改名）。
+- `history.h` 删掉多余的 `#include "config/config.h"`：它已经通过 `gas/gas.h` 传递包含。
+
 ## 报警蜂鸣器时长可设置（`f8432ed` + `0d31c62`）
 
 配置升到 v5 并新增蜂鸣器时长之后，先 `make clean` 再从无缓存状态完整构建，重新运行四套 Host Test。两个提交分别单独构建过。
@@ -9,7 +80,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | ARM 编译和链接 | PASS：GNU Arm 14.3.rel1，Cortex-M3，零 warning/error |
-| 主机 C 单元测试 | PASS：MSVC 19.38，C11，/W4 /WX，`test_gas_monitor`、`test_settings`、`test_history`、`test_protocol` 四个全部通过 |
+| 主机 C 单元测试 | PASS：MSVC 19.38，C11，/W4 /WX，`test_gas`、`test_config`、`test_history`、`test_protocol` 四个全部通过 |
 | 实物 / Proteus | NOT VERIFIED |
 
 最终 ARM 构建：text = 28260 bytes，data = 92 bytes，bss = 4148 bytes。BIN 为 28352 bytes，占 Flash 64 KB 的 43%，RAM 20 KB 的 20%。文本段比上一轮增加 612 字节：多了一个配置字段、一组设置界面行、一条协议命令，以及跨层的两个 `_Static_assert`。
@@ -22,12 +93,12 @@ BIN SHA256：`488b422405d9a07724138527e6c4ff2b9f1108e86bc75189168d1ca60a6e7f6e`�
 
 ### 本轮的设计核对
 
-- **16 个字节一个都不能多。** 配置区是两个 16 字节槽，历史区 0x20～0xFF 是 14 条 16 字节记录，加起来正好 256 字节，整片 AT24C02 没有空余。核对方式：`history.c` 与 `settings.c` 的区间常量相加等于 256，且新增字段占用的是压缩 sequence 腾出的字节，槽大小与历史区起点都没动。
-- **v4 记录必须被挡住，而不是「几乎读对」。** 两个布局只差字节 2 和 3：v4 的 byte 3 是序号高字节，从 0 开始时为 0，读成蜂鸣器时长就是「不响」，且 CRC 与其余字段全部通过。核对方式见 `tests/test_settings.c` 的 `test_version_mismatch_falls_back()`：写入一份有效记录后把 `f.data[1]` 改成 4，`settings_load()` 必须失败。
-- **越界的时长不能回绕成短时长。** `gas_buzzer_duration_ms()` 对 `>= GAS_BUZZER_ALWAYS` 的所有取值返回哨兵，只有 1～60 才做乘法；若先乘再截断，66 会变成 464 毫秒。核对方式见 `tests/test_gas_monitor.c`：66 和 255 都断言等于 `GAS_BUZZER_FOREVER_MS`。另有一条 `_Static_assert` 保证配置上限换算后仍小于哨兵。
+- **16 个字节一个都不能多。** 配置区是两个 16 字节槽，历史区 0x20～0xFF 是 14 条 16 字节记录，加起来正好 256 字节，整片 AT24C02 没有空余。核对方式：`history.c` 与 `config.c` 的区间常量相加等于 256，且新增字段占用的是压缩 sequence 腾出的字节，槽大小与历史区起点都没动。
+- **v4 记录必须被挡住，而不是「几乎读对」。** 两个布局只差字节 2 和 3：v4 的 byte 3 是序号高字节，从 0 开始时为 0，读成蜂鸣器时长就是「不响」，且 CRC 与其余字段全部通过。核对方式见 `tests/test_config.c` 的 `test_version_mismatch_falls_back()`：写入一份有效记录后把 `f.data[1]` 改成 4，`config_load()` 必须失败。
+- **越界的时长不能回绕成短时长。** `config_buzzer_duration_ms()` 对 `>= GAS_BUZZER_ALWAYS` 的所有取值返回哨兵，只有 1～60 才做乘法；若先乘再截断，66 会变成 464 毫秒。核对方式见 `tests/test_gas.c`：66 和 255 都断言等于 `GAS_BUZZER_FOREVER_MS`。另有一条 `_Static_assert` 保证配置上限换算后仍小于哨兵。
 - **`SET BUZZER 256` 不能被收窄成静默。** setter 接受 `uint16_t` 而不是字段的 `uint8_t`，先把上界判掉再转换。核对方式见 `tests/test_protocol.c`：`SET BUZZER 256` 回 `ERR RANGE` 且档位停在上一次的 `ALWAYS`。
 - **`OFF` 和 `ALWAYS` 必须走自己的解析路径。** 它们排在 `SET` 分支里「先把第二个 token 解析成数字」那一步之前；顺序反了，两者都会被判成 `ERR VALUE` 就提前返回。核对方式：同一组用例里两者的成功路径与 `SET BUZZER FOO → ERR VALUE` 并存。
-- **改蜂鸣器时长不重启安全窗口。** `config_changed()` 会清 `safe_timing`，`mark_dirty()` 不会；蜂鸣器时长只走后者。核对方式见 `tests/test_gas_monitor.c` 的 `test_buzzer_set()`：在 `SAFE_WAIT` 且 `reset_ready` 的监视器上调蜂鸣器，`reset_ready` 必须保持；紧接着调阈值，必须清零。
+- **改蜂鸣器时长不重启安全窗口。** `config_changed()` 会清 `safe_timing`，`mark_dirty()` 不会；蜂鸣器时长只走后者。核对方式见 `tests/test_gas.c` 的 `test_buzzer_set()`：在 `SAFE_WAIT` 且 `reset_ready` 的监视器上调蜂鸣器，`reset_ready` 必须保持；紧接着调阈值，必须清零。
 
 ## 软件冻结候选（基于 `33c6189`）
 
@@ -168,6 +239,6 @@ BIN SHA256：`e446a48b1489a36a74975995291668a140d0f377a3bd3310f6a56440721f711d`�
 
 上述软件结果不代表传感器标定或硬件功能通过。待验证：8 MHz 晶振、ADC 电压和分压接线、MQ 模块预热/响应、继电器接点与有效电平、复位期间 PA8 的默认状态、EEPROM 地址/写周期、按键实物消抖、EXTI 下降沿在实物按键抖动下的触发次数、TIM2 10 ms 节拍的实测周期与长时间漂移，以及此前新增的三项：SSD1306 的实际地址与 400 kHz 下的波形、HC-05 在 9600 baud 下连续收发历史记录的完整性、AT24C02 在 0x20～0xFF 段反复写入的耐久性与掉电时的记录完整性。
 
-本轮另外两项只能上实物确认：**蜂鸣器实际响多久**与设定值是否相符（`BUZZER_TICK_MS` 与实际节拍的一致性由 `app.c` 的 `_Static_assert` 锁定，但「写进寄存器的值」到「听到的时长」这段没有软件可证的环节）；以及**`alarm_output_force_safe()` 之后蜂鸣器是否真的静默**——那条路径只在故障时进入，主机测试和 Proteus 都不会替它做保。
+本轮另外两项只能上实物确认：**蜂鸣器实际响多久**与设定值是否相符（`alarm.c` 用 `GAS_TICK_MS` 把毫秒换算成节拍，而这个常量与实际 TIM2 周期只有文字约定，见本轮「设计核对」的最后一条；「写进寄存器的值」到「听到的时长」这段没有软件可证的环节）；以及**`alarm_force_safe()` 之后蜂鸣器是否真的静默**——那条路径只在故障时进入，主机测试和 Proteus 都不会替它做保。
 
-主机测试不覆盖 BSP 与组合层：`bsp/ssd1306`、`bsp/serial`、`bsp/alarm_output` 和 `app/display`、`app/app.c` 的引脚绑定、I2C 时序、中断收发与主循环调度都只经过编译和静态核对，需要 Proteus 或实物确认。蜂鸣器的计时换算（`gas_buzzer_duration_ms()`）特意放在被测得到的 `gas_monitor.c`，就是为了让这段逻辑不必只靠静态核对。
+主机测试不覆盖 BSP 与组合层：`bsp_oled`、`bsp_uart`、`app/alarm` 和 `app/display`、`app/app.c` 的引脚绑定、I2C 时序、中断收发与主循环调度都只经过编译和静态核对，需要 Proteus 或实物确认。蜂鸣器的计时换算（`config_buzzer_duration_ms()`）特意放在被测得到的 `config.c`，就是为了让这段逻辑不必只靠静态核对。

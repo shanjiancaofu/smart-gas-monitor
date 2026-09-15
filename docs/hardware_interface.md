@@ -1,6 +1,6 @@
 # 硬件接口表
 
-本文档给硬件联调使用。引脚以 `stm32f103/cubemx/smart_gas_monitor.ioc` 为准，电平有效性以 `bsp/alarm_output.h` 为准。
+本文档给硬件联调使用。引脚以 `stm32f103/cubemx/smart_gas_monitor.ioc` 为准，电平有效性以 `bsp/bsp_relay.h` 和 `bsp/bsp_buzzer.h` 为准。
 
 | STM32 引脚 | User Label | 连接对象 | 说明 |
 | --- | --- | --- | --- |

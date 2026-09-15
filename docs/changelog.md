@@ -2,7 +2,18 @@
 
 按时间倒序记录固件的功能性改动。每条附提交短哈希，完整差异用 `git show <哈希>` 查看。构建与测试结果见[验证记录](verification.md)，分层与业务规则见[固件说明](firmware.md)。
 
-日期均为 2026-09-14。
+日期：2026-09-14 及之前各条为 2026-09-14，目录重构一条为 2026-09-15。
+
+## 2026-09-15 待提交 — 按业务和硬件职责整理
+
+- app 按 gas、alarm、config、history、protocol、display 分工；main 改为无参数 app_init/app_update，应用对象在 app.c 内部。
+- BSP 使用 bsp_ 前缀。ADC 只读硬件通道，MQ 映射及八次平均归 gas；蜂鸣器计时归 alarm，LED/蜂鸣器/继电器各有独立 GPIO 驱动；OLED 和 EEPROM 共用 bsp_i2c。
+- gas/config/BSP 内部 API 随模块名统一；历史接口为 history_add/get/clear。串口命令、引脚、EEPROM v5 布局保持原有格式。
+- app_update 按顺序调用调度函数；关阀输出先于持久化写入。新增历史清除仅为 C 接口，未增加远程命令。
+- 改名对照：`app/gas/gas_monitor.*` → `app/gas/gas.*`，`app/settings/*` → `app/config/*`，`app/communication/*` → `app/protocol/*`，`bsp/*` → `bsp/bsp_*`。测试同步改名 `test_gas_monitor.c` → `test_gas.c`、`test_settings.c` → `test_config.c`，新增 `tests/test_alarm.c`。查更早的提交时按这张表换算旧名。
+- 三处不是搬移、需要单独核对的行为：八次平均由 BSP 移到 gas（`bsp_adc_read()` 单路读取）；蜂鸣器计时窗口由 BSP 移到 `app/alarm/`；`app.c` 改为持有唯一实例的单例，但其下各模块仍是显式传参，主机测试因此一行断言未改。核对记录见[验证记录](verification.md)。
+- 旧的两条跨层 `_Static_assert` 随重复定义一起消失：`APP_TICK_MS` 直接定义为 `GAS_TICK_MS`，蜂鸣器哨兵值只剩 `config/config.h` 一处。`GAS_BUZZER_MAX_S * 1000u < GAS_BUZZER_FOREVER_MS` 保留。
+- 统一中文注释、四空格和花括号，补充 ADC 平均、转换失败及报警窗口的主机测试。CubeMX 初始化和供应商文件不变，仅调整 USER CODE 入口及手写 GNUmakefile。
 
 ## `0d31c62` — 报警蜂鸣器时长可设置
 

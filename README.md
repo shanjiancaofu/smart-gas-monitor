@@ -31,23 +31,30 @@ smart-gas-monitor/
 
 ```text
 stm32f103/
-├── bsp/                    # 只访问 HAL，不依赖 app
-│   ├── mq_sensor.*         # PA0/PA1/PA4 三路 ADC 采集，每路 8 次平均
-│   ├── key.*               # PB12～PB15 的 EXTI 边沿锁存、扫描与消抖
-│   ├── alarm_output.*      # 继电器、LED、蜂鸣器
-│   ├── at24c02.*           # I2C2 分页读写
-│   ├── ssd1306.*           # I2C1 面板，页缓冲与字模
-│   └── serial.*            # 两路 UART 的中断收发行缓冲
-└── app/
-    ├── app.*               # 组合层：装配各模块与主循环调度，依赖 BSP/HAL
-    ├── gas/                # 阈值、监测状态机、报警锁存和人工恢复
-    ├── settings/           # 参数序列化、CRC、双副本保存
-    ├── history/            # EEPROM 报警记录环形存储
-    ├── display/            # 实时、参数、历史三个界面
-    └── communication/      # 文本协议解析与逐行应答
+├── app/
+│   ├── app.c/.h             # 应用入口、初始化和任务调度
+│   ├── gas/gas.c/.h         # 通道映射、八次平均、阈值和状态机
+│   ├── alarm/alarm.c/.h     # 报警输出策略及 TIM2 响铃计时
+│   ├── config/config.c/.h   # 参数类型、默认值、校验和 EEPROM 双副本
+│   ├── history/history.c/.h # 报警历史增、读、清除
+│   ├── protocol/protocol.c/.h # 两路串口共用的命令解析
+│   └── display/display.c/.h # OLED 页面
+├── bsp/
+│   ├── bsp_adc.c/.h         # 单次 ADC 硬件通道读取
+│   ├── bsp_uart.c/.h        # UART 中断收发
+│   ├── bsp_i2c.c/.h         # I2C 硬件传输
+│   ├── bsp_oled.c/.h        # SSD1306 页缓冲、字模和刷新
+│   ├── bsp_key.c/.h         # EXTI 事件、按键消抖
+│   ├── bsp_led.c/.h         # 状态灯和阀门指示
+│   ├── bsp_buzzer.c/.h      # 蜂鸣器 GPIO 开关
+│   ├── bsp_relay.c/.h       # 继电器 GPIO 开关
+│   └── bsp_at24c02.c/.h     # EEPROM 分页访问
+└── cubemx/                 # 原有 CubeMX 工程
 ```
 
-`cubemx/Core/`、`cubemx/Drivers/` 由 CubeMX 生成。BSP 访问 HAL；`app/gas`、`app/settings`、`app/history` 与 `app/communication` 只依赖标准 C，可在主机上测试；`app.c` 是唯一把两者装配起来的地方，它持有 BSP 对象并调用 `HAL_GetTick()`，因此自身依赖 HAL。根目录 `tests/` 保存主机 C 测试。
+`main` 只调用 `app_init()` 和 `app_update()`。应用状态及外设对象保存在 `app.c` 内部，主循环函数仅按顺序调度任务。BSP 不依赖应用层，ADC 驱动也不需要知道 MQ 型号。`gas/config/history/protocol` 可直接做主机测试，`alarm` 通过模拟 BSP 输出测试。
+
+代码采用四空格缩进、条件语句花括号、中文职责注释，风格配置见 `.clang-format`。格式化范围仅限手写 app/bsp，不改 CubeMX 生成区。
 
 ## 串口协议
 
@@ -84,6 +91,6 @@ make -C stm32f103/cubemx -j4
 python tools/run_host_tests.py --cc gcc
 ```
 
-固件输出在 `stm32f103/cubemx/build/`。`cubemx/GNUmakefile` 加入外层 app/bsp 源码，CubeMX 可重新生成其管理的 `Makefile`。主机测试脚本自动编译并运行 `tests/` 下的全部测试。
+固件输出在 `stm32f103/cubemx/build/`。`cubemx/GNUmakefile` 加入外层 app/bsp 源码，CubeMX 可重新生成其管理的 `Makefile`。主机测试的清单在 `tools/run_host_tests.py` 里显式列出——每个测试需要链接哪几个 `.c` 是脚本推断不出来的，所以新增测试要同时在那个表里登记。
 
-当前默认阈值为 ADC 原始计数演示参数，未标定为 ppm。软件部分已完成，四个主机测试套件全部通过，未进行实物或 Proteus 验证。
+当前默认阈值为 ADC 原始计数演示参数，未标定为 ppm。软件部分已完成，五个主机测试套件全部通过，未进行实物或 Proteus 验证。
