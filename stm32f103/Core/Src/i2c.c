@@ -39,11 +39,11 @@ void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  /* 退回 100 kHz：400 kHz 下 Proteus 的 SSD1306 模型收不到初始化序列，
-   * bsp_oled_init() 失败、oled.ready 保持 false，屏幕上什么都不画。整屏
-   * 刷新因此从约 23 ms 变成约 90 ms，代价见 docs/changelog.md 里当初提速
-   * 那一条。 */
-  hi2c1.Init.ClockSpeed = 100000;
+  /* 50 kHz，为迁就 Proteus 的 SSD1306 模型下调：速率越高它越接不住初始化序列，
+   * 而 bsp_oled_init() 一旦失败，oled.ready 就保持 false、display_update()
+   * 直接返回，屏幕上什么都不画。代价是整屏 1024 字节刷新变慢，见
+   * docs/changelog.md 里当初提速那一条。 */
+  hi2c1.Init.ClockSpeed = 50000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
