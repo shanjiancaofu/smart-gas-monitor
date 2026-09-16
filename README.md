@@ -25,6 +25,17 @@ powershell -ExecutionPolicy Bypass -File tools/keil_make_bin.ps1
 python tools/run_host_tests.py --cc cl
 python tools/run_host_tests.py --cc cl --eeprom 2
 
+## 提交规范
+
+提交信息使用以下格式，冒号后用英文小写动词开头，简要说明本次变更：
+
+```text
+[feature]: add ...
+[fix]: handle ...
+[refactor]: organize ...
+[docs]: update ...
+```
+
 ## 主要功能
 
 - 三路 MQ ADC 采样和状态判断
