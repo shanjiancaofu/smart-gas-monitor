@@ -16,6 +16,6 @@
 
 ## Keil5 构建
 
-打开 stm32f103/MDK-ARM/smart_gas_monitor.uvprojx，选择 smart_gas_monitor Target 并执行 Build。输出位于 build/keil5/。
+打开 `stm32f103/MDK-ARM/smart_gas_monitor.uvprojx`，选择 `smart_gas_monitor` Target 并执行 Build。最终输出位于 `build/keil5/Artifacts/`，中间文件位于 `build/keil5/Listings/`。
 
 文档中的 PASS 仅表示软件检查、主机测试或构建已完成，不代表实物验证已经通过。

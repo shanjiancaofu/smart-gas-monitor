@@ -15,9 +15,10 @@ main = root / 'stm32f103/Core/Src/main.c'
 project = root / 'stm32f103/MDK-ARM/smart_gas_monitor.uvprojx'
 before = project.stat().st_mtime_ns if project.exists() else 0
 build = root / 'build'
-build.mkdir(exist_ok=True)
-script = build / 'cubemx-generate.txt'
-log = build / 'cubemx-generate.log'
+logs = build / 'logs'
+logs.mkdir(parents=True, exist_ok=True)
+script = logs / 'cubemx-generate.txt'
+log = logs / 'cubemx-generate.log'
 # Use CubeMX's unquoted command-file path syntax.
 script.write_text(
     f'popupwrapper set\nconfig load {ioc.as_posix()}\n'

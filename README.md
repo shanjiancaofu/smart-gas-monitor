@@ -4,7 +4,19 @@
 
 ## Keil5 编译
 
-使用 Keil5 打开 stm32f103/MDK-ARM/smart_gas_monitor.uvprojx，选择 smart_gas_monitor Target 后执行 Build。编译生成的 .axf、.hex、.map 和中间文件统一放在 build/keil5/。该目录是本地构建目录，不提交到 Git。
+使用 Keil5 打开 `stm32f103/MDK-ARM/smart_gas_monitor.uvprojx`，选择 `smart_gas_monitor` Target 后执行 Build。
+
+- 可烧录文件：`build/keil5/Artifacts/smart_gas_monitor.hex`
+- 调试文件：`build/keil5/Artifacts/smart_gas_monitor.axf`、`.map`
+- 中间文件：`build/keil5/Listings/`
+
+Keil 的 ARMCC 工具链不会自动生成 BIN；需要 BIN 时，在工程目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/keil_make_bin.ps1
+```
+
+生成的 `smart_gas_monitor.bin` 也会放在 `build/keil5/Artifacts/`。`build/` 是本地构建目录，不提交到 Git。
 
 代码分层为：main → app → bsp → HAL。
 
