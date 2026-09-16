@@ -4,7 +4,7 @@
 #include <string.h>
 
 /* 用例里的绝对时刻都从这里起步：run_to_normal() 跑完时最后一次采样的时刻。
- * 之后的采样必须落在这个时刻的采样超时窗口（3 个采样周期）以内，否则
+ * 之后的采样必须落在这个时刻的采样超时窗口以内，否则
  * gas_sample() 会把它读成采样中断而判 FAULT，而不是要看的状态变化。
  * 写成表达式而不是字面量，是为了改 GAS_WARMUP_MS 时这些时刻跟着走。 */
 #define T0 (GAS_WARMUP_MS + GAS_SAFE_HOLD_MS)
@@ -51,21 +51,21 @@ static void test_states(void)
         assert(gas_valve_open(&m));
     }
     run_to_normal(&m, 0);
-    gas_update(&m, (T0 + 500u));
+    gas_update(&m, (T0 + gas_sample_timeout_ms(&m)));
     assert(m.state == GAS_FAULT && !gas_valve_open(&m));
     assert(m.config.lockout && m.dirty);
     m.dirty = false;
-    gas_update(&m, (T0 + 501u));
+    gas_update(&m, (T0 + gas_sample_timeout_ms(&m) + 1u));
     assert(!m.dirty);
-    sample(&m, (T0 + 600u), 500, 500, 500);
-    gas_key(&m, GAS_KEY_CONFIRM, (T0 + 600u));
+    sample(&m, (T0 + gas_sample_timeout_ms(&m) + 100u), 500, 500, 500);
+    gas_key(&m, GAS_KEY_CONFIRM, (T0 + gas_sample_timeout_ms(&m) + 100u));
     assert(!gas_valve_open(&m));
-    gas_sample(&m, NULL, false, (T0 + 700u));
+    gas_sample(&m, NULL, false, (T0 + gas_sample_timeout_ms(&m) + 200u));
     assert(m.state == GAS_FAULT);
-    sample(&m, (T0 + 800u), 4096, 0, 0);
+    sample(&m, (T0 + gas_sample_timeout_ms(&m) + 300u), 4096, 0, 0);
     assert(m.state == GAS_FAULT);
     run_to_normal(&m, 0);
-    sample(&m, (T0 + 1000u), 500, 500, 500);
+    sample(&m, (T0 + gas_sample_timeout_ms(&m) + 400u), 500, 500, 500);
     assert(m.state == GAS_SAFE_WAIT && !gas_valve_open(&m));
     assert(!m.reset_ready);
     /* 预热计时和安全计时都要跨过回绕点。起点选在距回绕 GAS_WARMUP_MS+1000
@@ -192,13 +192,15 @@ static void test_sample_period(void)
     assert(m.item == GAS_ITEM_PERIOD);
     gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.sample_period_ms == 200 && m.dirty);
-    assert(gas_sample_timeout_ms(&m) == 600);
+    assert(gas_sample_timeout_ms(&m) == 200u * GAS_SAMPLE_TIMEOUT_PERIODS);
     /* 停顿判定的窗口跟着配置的采样周期走，不是一个固定常数。 */
     for (t = (T0 + 100u); t <= (T0 + 3900u); t += 200) sample(&m, t, 500, 500, 500);
     assert(m.state == GAS_NORMAL);
-    gas_update(&m, (T0 + 3900u) + 599u);
+    /* 窗口跟着配置的采样周期走（当前是 200 ms × GAS_SAMPLE_TIMEOUT_PERIODS），
+     * 差一毫秒还不算中断，刚好到点才算。 */
+    gas_update(&m, (T0 + 3900u) + gas_sample_timeout_ms(&m) - 1u);
     assert(m.state == GAS_NORMAL);
-    gas_update(&m, (T0 + 3900u) + 600u);
+    gas_update(&m, (T0 + 3900u) + gas_sample_timeout_ms(&m));
     assert(m.state == GAS_FAULT && !gas_valve_open(&m));
 }
 /* 取值 → 毫秒 → 名字这条链，以及它在两端和越界处的行为。 */

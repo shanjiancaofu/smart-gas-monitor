@@ -149,8 +149,9 @@ void display_update(display_t *d, const gas_t *m, const history_t *h, bool stora
         draw_realtime(d, m);
         break;
     }
-    /* 每次最多两页：一页约 93 ms，两页 186 ms 仍在 300 ms 采样超时线以内。 */
-    bsp_oled_flush(d->oled, 2u);
+    /* 一次推完所有脏页。实时页三路读数每帧都在变，只有推满才追得上变化速度；
+     * 采样超时窗口已经放大到 10 个采样周期，整屏刷新塞得进去。 */
+    bsp_oled_flush(d->oled, SSD1306_PAGES);
     d->screen = screen;
     d->last_draw_ms = now;
 }

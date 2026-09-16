@@ -27,7 +27,13 @@
  * 无关——一个是开机等待，一个是恢复判定要求的连续安全时长。 */
 #define GAS_WARMUP_MS 3000u
 #define GAS_SAVE_DELAY_MS 2000u
-#define GAS_SAMPLE_TIMEOUT_PERIODS 3u
+/* 多久没采到有效样本就判采样中断，单位是采样周期。
+ *
+ * 取 10 而不是 3：这个窗口必须大于任何一次合法的阻塞。最大的一笔是显示刷新，
+ * 整屏 1024 字节走软件 I2C 约 210 ms，慢一档的构建能到 750 ms。取 3（默认周期
+ * 下 300 ms）时，一次整屏刷新就会被当成采样故障，把「环境持续安全 3 秒」的窗
+ * 口清零，KEY4 永远解不开锁。取 10 给足余量，采样器真死了也仍在一秒内报出来。 */
+#define GAS_SAMPLE_TIMEOUT_PERIODS 10u
 
 /* Comment normalized for portability. */
 #define GAS_BUZZER_OFF 0u
