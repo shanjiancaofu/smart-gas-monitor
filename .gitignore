@@ -80,3 +80,8 @@ nul
 # Python validation tools
 __pycache__/
 *.pyc
+
+# Keil local project files
+stm32f103/MDK-ARM/DebugConfig/
+stm32f103/MDK-ARM/RTE/
+stm32f103/MDK-ARM/smart_gas_monitor/

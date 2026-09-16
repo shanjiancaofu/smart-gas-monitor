@@ -1,65 +1,24 @@
-# 智能燃气监测与自动防护系统 课设版
+﻿# 智能燃气监测与自动防护系统
 
-基于 STM32F103C8T6 的简化课设工程，使用 STM32 HAL 和 Keil5 编译下载。
+基于 STM32F103C8T6、STM32 HAL 和 Keil5 的课程设计工程。系统使用 MQ4、MQ6、MQ7 三路模拟量进行燃气监测，并使用 AT24C64 保存参数和报警历史。
 
-```text
-smart-gas-monitor/
-├── stm32f103/
-│   ├── MDK-ARM/smart_gas_monitor.uvprojx  # Keil5 工程
-│   ├── Core/                              # CubeMX 生成初始化代码
-│   ├── Drivers/                           # STM32F1 HAL/CMSIS
-│   ├── app/                               # 应用业务
-│   ├── bsp/                               # 硬件驱动
-│   ├── smart_gas_monitor.ioc              # CubeMX 配置
-│   └── STM32F103xx_FLASH.ld
-├── docs/
-├── tests/
-└── tools/
-```
+## Keil5 编译
 
-当前功能包括 MQ4/MQ6/MQ7 三路采样、五键交互、OLED 页面、TIM2 节拍、AT24C64 参数和报警历史、lockout、多传感器蜂鸣器节奏以及 USART1/HC-05 文本协议。
+使用 Keil5 打开 stm32f103/MDK-ARM/smart_gas_monitor.uvprojx，选择 smart_gas_monitor Target 后执行 Build。编译生成的 .axf、.hex、.map 和中间文件统一放在 build/keil5/。该目录是本地构建目录，不提交到 Git。
 
-## Keil5 使用
-
-用 Keil5 打开：
-
-```text
-stm32f103/MDK-ARM/smart_gas_monitor.uvprojx
-```
-
-选择 `smart_gas_monitor` Target 后点击 Build。工程已经加入 CubeMX HAL、`app/` 和 `bsp/` 源文件，头文件路径也已配置。下载使用 ST-Link，芯片选择 STM32F103C8T6。
-
-Keil5 生成的目标文件默认位于：
-
-```text
-stm32f103/MDK-ARM/smart_gas_monitor/
-```
+代码分层为：main → app → bsp → HAL。
 
 ## 主机测试
 
-```powershell
 python tools/run_host_tests.py --cc cl
 python tools/run_host_tests.py --cc cl --eeprom 2
-```
 
-## 可选 CMake 构建
+## 主要功能
 
-仓库保留 CMake/Ninja 入口用于命令行构建：
-
-```powershell
-cmake --preset arm-debug
-cmake --build --preset arm-debug
-
-cmake --preset arm-release
-cmake --build --preset arm-release
-```
-
-课设交付以 Keil5 工程为准。
-
-## 文档
-
-- [固件说明](docs/firmware.md)
-- [硬件接口](docs/hardware_interface.md)
-- [串口协议](docs/uart_protocol.md)
-- [演示流程](docs/demo_flow.md)
-- [验证记录](docs/verification.md)
+- 三路 MQ ADC 采样和状态判断
+- OLED 实时、设置、历史页面
+- 五按键交互和报警解除
+- AT24C64 参数保存与报警历史
+- lockout 安全锁存
+- 按报警传感器数量变化的蜂鸣器节奏
+- USART1/HC-05 文本协议
