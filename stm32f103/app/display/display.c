@@ -55,87 +55,40 @@ static void draw_realtime(display_t *d, const gas_t *m)
 
 static void draw_settings(display_t *d, const gas_t *m, bool storage_ok)
 {
-    char buzz[8];
     unsigned i;
-    /* Comment normalized for portability. */
-    putf(d, 0u, false, "SETTINGS");
-    for (i = 0; i < GAS_COUNT; ++i) {
-        putf(d, 1u + i, false, "%c %s  TH %5u", m->item == (uint8_t)i ? '>' : ' ',
-             gas_channel_name((gas_channel_t)i), m->config.alarm[i]);
-    }
-    putf(d, 4u, false, "%c PERIOD %5u ms", m->item == GAS_ITEM_PERIOD ? '>' : ' ',
-         m->config.sample_period_ms);
-    config_buzzer_name(m->config.buzzer, buzz, sizeof(buzz));
-    putf(d, 5u, false, "%c BUZZ %s", m->item == GAS_ITEM_BUZZER ? '>' : ' ', buzz);
-    /* Comment normalized for portability. */
-    putf(d, 6u, false, "STORE %s  ALARMS %lu", storage_ok ? "OK" : "FAIL",
-         (unsigned long)m->alarm_count);
-    putf(d, 7u, false, "K5 ITEM K2+ K3-");
+    (void)storage_ok;
+    putf(d, 0u, true, "SETTINGS");
+    for (i = 0; i < GAS_COUNT; ++i)
+        putf(d, (i + 1u) * 2u, true, "%c%s %4u", m->item == (uint8_t)i ? '>' : ' ', gas_channel_name((gas_channel_t)i), m->config.alarm[i]);
 }
 
 static void draw_alarm(display_t *d, const gas_t *m)
 {
-    char mask[16];
     unsigned i;
-    gas_alarm_mask_name(m->alarm_mask, mask, sizeof(mask));
-    putf(d, 0u, false, "!!! ALARM !!!");
-    /* Comment normalized for portability. */
-    for (i = 0; i < GAS_COUNT; ++i) {
-        putf(d, 1u + i, false, "%c %s %5u", (m->alarm_mask & (1u << i)) ? '>' : ' ',
-             gas_channel_name((gas_channel_t)i), m->adc[i]);
-    }
-    putf(d, 4u, false, "TRIGGER %s", mask);
-    putf(d, 5u, false, "VALVE:CLOSE");
-    /* Comment normalized for portability. */
-    putf(d, 6u, false, "PRESS KEY4");
-    putf(d, 7u, false, "AFTER SAFE 3S");
+    putf(d, 0u, true, "!!! ALARM !!!");
+    for (i = 0; i < GAS_COUNT; ++i)
+        putf(d, (i + 1u) * 2u, true, "%c%s %5u", (m->alarm_mask & (1u << i)) ? '>' : ' ', gas_channel_name((gas_channel_t)i), m->adc[i]);
 }
 
 static void draw_fault(display_t *d)
 {
-    putf(d, 0u, false, "!!! FAULT !!!");
-    putf(d, 1u, false, "ADC/COMM ERROR");
-    putf(d, 3u, false, "VALVE:CLOSE");
-    putf(d, 5u, false, "CHECK HARDWARE");
-    putf(d, 7u, false, "PRESS KEY4 AFTER SAFE");
+    putf(d, 0u, true, "!!! FAULT !!!");
+    putf(d, 2u, true, "ADC/COMM ERROR");
+    putf(d, 4u, true, "VALVE:CLOSE");
+    putf(d, 6u, true, "CHECK HARDWARE");
 }
 
 static void draw_history(display_t *d, const history_t *h)
 {
     history_entry_t entry;
-    char mask[16];
     uint16_t count = history_count(h);
-    putf(d, 0u, false, "HISTORY %u/%u", count, HISTORY_SLOTS);
-    if (count == 0u) {
-        putf(d, 1u, false, "NO RECORDS");
-        putf(d, 2u, false, "KEY1 NEXT");
-        putf(d, 3u, false, "");
-        putf(d, 4u, false, "");
-        putf(d, 5u, false, "");
-        putf(d, 6u, false, "");
-        putf(d, 7u, false, "");
-        return;
-    }
-    if (!history_get(h, d->history_index, &entry)) {
-        putf(d, 1u, false, "RECORD %u UNREADABLE", d->history_index);
-        putf(d, 2u, false, "");
-        putf(d, 3u, false, "");
-        putf(d, 4u, false, "");
-        putf(d, 5u, false, "");
-        putf(d, 6u, false, "");
-        putf(d, 7u, false, "");
-        return;
-    }
-    gas_alarm_mask_name(entry.alarm_mask, mask, sizeof(mask));
-    /* Comment normalized for portability. */
-    putf(d, 0u, false, "HISTORY %u/%u", d->history_index + 1u, count);
-    putf(d, 1u, false, "REC %-4u SEQ %u", d->history_index + 1u, entry.seq);
-    putf(d, 2u, false, "UP %lu s", (unsigned long)entry.uptime_s);
-    putf(d, 3u, false, "%s %5u", gas_channel_name(GAS_MQ4), entry.adc[GAS_MQ4]);
-    putf(d, 4u, false, "%s %5u", gas_channel_name(GAS_MQ6), entry.adc[GAS_MQ6]);
-    putf(d, 5u, false, "%s %5u", gas_channel_name(GAS_MQ7), entry.adc[GAS_MQ7]);
-    putf(d, 6u, false, "ALARM %s", mask);
-    putf(d, 7u, false, "K2 NEWER K3 OLDER");
+    putf(d, 0u, true, "HIST %u/%u", count, HISTORY_SLOTS);
+    if (count == 0u) { putf(d, 2u, true, "NO RECORDS"); putf(d, 4u, true, "KEY2/3 BROWSE"); putf(d, 6u, true, "KEY1 BACK"); return; }
+    if (!history_get(h, d->history_index, &entry)) { putf(d, 2u, true, "RECORD INVALID"); putf(d, 4u, true, "CHECK EEPROM"); putf(d, 6u, true, "KEY2/3 BACK"); return; }
+    putf(d, 0u, true, "HIST %u/%u", d->history_index + 1u, count);
+    putf(d, 2u, true, "SEQ %u UP%lus", entry.seq, (unsigned long)entry.uptime_s);
+    putf(d, 4u, true, "MQ4 %u MQ6 %u", entry.adc[GAS_MQ4], entry.adc[GAS_MQ6]);
+    putf(d, 6u, true, "MQ7 %u A%u", entry.adc[GAS_MQ7], entry.alarm_mask);
 }
 
 void display_init(display_t *d, bsp_oled_t *oled)
