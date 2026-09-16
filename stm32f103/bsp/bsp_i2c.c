@@ -61,7 +61,11 @@ static void sda_input(const soft_bus_t *bus)
 
     gpio.Pin = bus->sda;
     gpio.Mode = GPIO_MODE_INPUT;
-    gpio.Pull = GPIO_NOPULL;
+    /* 必须带内部上拉。存储没接时这条线没有任何外部上拉，浮空输入会被读成
+     * 忽高忽低的随机值——读成低就被当成从机应答，于是 history_init() 以为
+     * 存储在线，把 510 个槽位全扫一遍，光初始化就花掉 7.7 秒。带上拉之后
+     * 空闲即读作高（I2C 的空闲电平），真器件拉低应答时能盖过这个弱上拉。 */
+    gpio.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(bus->port, &gpio);
 }
 
@@ -72,7 +76,8 @@ static void sda_output(const soft_bus_t *bus)
 
     gpio.Pin = bus->sda;
     gpio.Mode = GPIO_MODE_OUTPUT_OD;
-    gpio.Pull = GPIO_NOPULL;
+    /* 同 sda_input()：没有外部上拉时，开漏写 1 只是把线放开，带上拉才是高。 */
+    gpio.Pull = GPIO_PULLUP;
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(bus->port, &gpio);
 }
@@ -84,7 +89,7 @@ void bsp_i2c_init(void)
 
     __HAL_RCC_GPIOB_CLK_ENABLE();
     gpio.Mode = GPIO_MODE_OUTPUT_OD;
-    gpio.Pull = GPIO_NOPULL;
+    gpio.Pull = GPIO_PULLUP;
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
     gpio.Pin = soft_buses[0].scl | soft_buses[0].sda | soft_buses[1].scl | soft_buses[1].sda;
     HAL_GPIO_Init(GPIOB, &gpio);
