@@ -7,6 +7,7 @@
 #include "usart.h"
 #include "alarm/alarm.h"
 #include "bsp_adc.h"
+#include "bsp_i2c.h"
 #include "bsp_servo.h"
 #include "bsp_eeprom.h"
 #include "bsp_key.h"
@@ -118,6 +119,8 @@ bool app_init(void)
     app->last_tick = app_ticks;
     /* 面板先点起来。后面读 EEPROM 要走一串可能超时的 I2C，屏幕不该跟着
      * 黑着等——EEPROM 没接时那段能到十几秒。 */
+    /* 两条 I2C 总线都走软件模拟，引脚要先配好，见 bsp_i2c.h。 */
+    bsp_i2c_init();
     (void)bsp_oled_init(&app->oled, oled);
     display_init(&app->display, &app->oled);
     bsp_key_init(&app->keys);

@@ -22,6 +22,13 @@
 
 /* USER CODE BEGIN 0 */
 
+/* 这两条 I2C 总线现在由 bsp_i2c.c 用 GPIO 翻转模拟，MX_I2C1_Init() /
+ * MX_I2C2_Init() 已经从 main.c 里移除，下面的硬件初始化代码不再被调用——留着
+ * 只是为了让 .ioc 和生成代码保持完整。
+ *
+ * 不要把它们加回 main.c：HAL_I2C_MspInit() 会把 PB6/PB7 和 PB10/PB11 配成复用
+ * 开漏，从软件 I2C 手里抢走引脚，OLED 和存储会一起失效。 */
+
 /* USER CODE END 0 */
 
 I2C_HandleTypeDef hi2c1;
