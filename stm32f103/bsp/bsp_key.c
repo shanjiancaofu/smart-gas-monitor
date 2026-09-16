@@ -1,8 +1,8 @@
 ﻿#include "bsp_key.h"
 #include "main.h"
 #include "stm32f1xx_hal.h"
-#include <string.h>
 #include <stdbool.h>
+#include <string.h>
 
 #if !defined(__ARMCC_VERSION)
 _Static_assert(KEY1_Pin != KEY2_Pin && KEY1_Pin != KEY3_Pin && KEY1_Pin != KEY4_Pin &&
@@ -11,6 +11,10 @@ _Static_assert(KEY1_Pin != KEY2_Pin && KEY1_Pin != KEY3_Pin && KEY1_Pin != KEY4_
                    KEY4_Pin != KEY5_Pin,
                "every key needs its own pin: EXTI lines are shared by pin number");
 #endif
+
+/* KEY1～KEY4 走 EXTI 下降沿，KEY5 是上拉轮询。位图的位序就是 KEY1..KEY5，
+ * 所以前四位是「有 EXTI 的键」，最后一位不是。 */
+#define KEY_EXTI_MASK 0x0fu
 
 typedef struct {
     GPIO_TypeDef *port;
@@ -30,7 +34,6 @@ static uint8_t bsp_key_bits(void)
     unsigned i;
 
     for (i = 0; i < KEY_COUNT; ++i) {
-
         if (HAL_GPIO_ReadPin(bsp_key_slots[i].port, bsp_key_slots[i].pin) == GPIO_PIN_RESET) {
             bits |= (uint8_t)(1u << i);
         }
@@ -41,8 +44,7 @@ static uint8_t bsp_key_bits(void)
 void bsp_key_init(bsp_key_t *keys)
 {
     memset(keys, 0, sizeof(*keys));
-
-    keys->raw = keys->stable = bsp_key_bits();
+    keys->held = bsp_key_bits();
     exti_pending = 0;
 }
 
@@ -71,28 +73,36 @@ static uint8_t bsp_key_take_edges(void)
 
 uint8_t bsp_key_poll(bsp_key_t *keys, uint32_t now)
 {
-    uint8_t raw = bsp_key_bits(), edges = bsp_key_take_edges(), events = 0;
+    uint8_t raw = bsp_key_bits();
+    uint8_t edges = bsp_key_take_edges();
+    uint8_t events = 0u;
     unsigned i;
+
     for (i = 0; i < KEY_COUNT; ++i) {
         uint8_t mask = (uint8_t)(1u << i);
+        bool pressed = (raw & mask) != 0u;
+        bool start;
 
-        if ((raw & mask) != (keys->raw & mask) || (edges & mask)) {
-            keys->raw = (uint8_t)((keys->raw & (uint8_t)~mask) | (raw & mask));
-            keys->changed_ms[i] = now;
+        if ((KEY_EXTI_MASK & mask) != 0u) {
+            /* 有 EXTI 的键：下降沿就是权威触发源。它记在中断里，主循环什么时候
+             * 回来处理都算数，不要求那一刻按键还按着。 */
+            start = (edges & mask) != 0u;
+        } else {
+            /* KEY5 没有 EXTI，只能靠轮询发现按下的那一瞬。 */
+            start = pressed && (keys->held & mask) == 0u;
         }
-        if ((raw & mask) != (keys->stable & mask) &&
-            (uint32_t)(now - keys->changed_ms[i]) >= KEY_DEBOUNCE_MS) {
-            keys->stable ^= mask;
-            if (raw & mask) {
-                events |= mask;
-            }
+        keys->held = (uint8_t)((keys->held & (uint8_t)~mask) | (pressed ? mask : 0u));
+
+        if (start) {
+            keys->edge_ms[i] = now;
+            keys->pending |= mask;
+        }
+        /* 消抖窗口走完才发事件；窗口里又来了新的下降沿就顺延，抖动不会连发。 */
+        if ((keys->pending & mask) != 0u &&
+            (uint32_t)(now - keys->edge_ms[i]) >= KEY_DEBOUNCE_MS) {
+            keys->pending &= (uint8_t)~mask;
+            events |= mask;
         }
     }
     return events;
 }
-
-bool bsp_key_is_down(const bsp_key_t *keys, unsigned key)
-{
-    return key < KEY_COUNT && (keys->stable & (1u << key)) != 0u;
-}
-
