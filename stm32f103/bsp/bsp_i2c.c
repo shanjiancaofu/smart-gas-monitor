@@ -14,23 +14,40 @@ static const soft_bus_t soft_buses[2] = {
     {GPIOB, GPIO_PIN_10, GPIO_PIN_11},   /* &hi2c2：存储 */
 };
 
-/* 半个时钟周期的延时。30 次循环在实物上（72 MHz、GCC -Og）约 5.7 us，SCL 一个
- * 完整周期约 11 us、总线速率约 88 kHz；整屏 1024 字节刷新因此从 747 ms 降到
- * 约 155 ms，稳稳落在 300 ms 采样超时线以内。
+/* 数据位的半个时钟周期延时。30 次循环在实物上（72 MHz、GCC -Og）约 5.7 us，
+ * SCL 一个完整周期约 11 us、总线速率约 88 kHz；整屏 1024 字节刷新因此从 747 ms
+ * 降到约 155 ms。
  *
  * 这个数是实测出来的，不是一个"理论值"：同样的循环次数在不同编译结果下长度能
  * 差五倍。140 次循环在 Proteus 用的 Keil 构建里约 5.4 us，在实物的 GCC -Og 构
  * 建里却有 26 us——总线因此只跑到 12.6 kHz，整屏刷新要 747 ms，把采样器挤过了
- * 超时线，KEY4 就再也解不开锁。以实物为准取 30。
- *
- * 代价：Proteus 会重新报 STOP 建立时间低于 4.7 us。那只是模型的时序警告，不影
- * 响通信（80 次循环那版就是如此）。真嫌吵就在仿真日志里忽略它。 */
+ * 超时线，KEY4 就再也解不开锁。 */
 #define I2C_DELAY_LOOPS 30u
+
+/* 起始和停止条件专用的延时，比数据位长得多。
+ *
+ * I2C 规范里 tHD;STA 和 tSU;STO 本来就只约束这两个条件（标准模式 4.7 us），
+ * 数据位的建立/保持要求只有几百纳秒。Proteus 的存储模型也只检查这两处，所以
+ * 只有这里需要慢下来；数据位照旧跑快，总线的整体速度不受影响。
+ *
+ * 60 次循环在 Keil 构建里约 6.2 us，满足 4.7 us 的下限；实物上约 11 us，只在
+ * 起始/停止时多花几微秒。 */
+#define I2C_EDGE_DELAY_LOOPS 60u
+
+static void i2c_delay_loops(unsigned loops)
+{
+    for (volatile unsigned i = 0; i < loops; ++i) {
+    }
+}
 
 static void i2c_delay(void)
 {
-    for (volatile unsigned i = 0; i < I2C_DELAY_LOOPS; ++i) {
-    }
+    i2c_delay_loops(I2C_DELAY_LOOPS);
+}
+
+static void i2c_edge_delay(void)
+{
+    i2c_delay_loops(I2C_EDGE_DELAY_LOOPS);
 }
 
 /* 句柄只用来选总线，不驱动硬件。 */
@@ -109,11 +126,11 @@ static void i2c_start(const soft_bus_t *bus)
 {
     sda_output(bus);
     sda_set(bus, true);
-    i2c_delay();
+    i2c_edge_delay();
     scl_set(bus, true);
-    i2c_delay();
+    i2c_edge_delay();
     sda_set(bus, false);   /* SCL 高时 SDA 下降 = 起始条件 */
-    i2c_delay();
+    i2c_edge_delay();
     scl_set(bus, false);
     i2c_delay();
 }
@@ -124,9 +141,8 @@ static void i2c_stop(const soft_bus_t *bus)
     sda_set(bus, false);
     i2c_delay();
     scl_set(bus, true);
-    i2c_delay();
-    /* SCL 已经是高，再把 SDA 放开就是停止条件。先抬高 SCL、等满一个半周期再动
-     * SDA，这段就是 tSU;STO。 */
+    /* 这一等就是 tSU;STO：SCL 抬起来之后要停够时间才允许动 SDA。 */
+    i2c_edge_delay();
     sda_set(bus, true);
     i2c_delay();
 }
