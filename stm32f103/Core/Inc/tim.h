@@ -41,6 +41,9 @@ extern TIM_HandleTypeDef htim2;
 void MX_TIM2_Init(void);
 
 /* USER CODE BEGIN Prototypes */
+/* TIM4 不在 .ioc 里，声明放在 USER CODE 段避免被 CubeMX 覆盖。理由见 tim.c。 */
+extern TIM_HandleTypeDef htim4;
+void MX_TIM4_Init(void);
 
 /* USER CODE END Prototypes */
 
@@ -49,7 +52,3 @@ void MX_TIM2_Init(void);
 #endif
 
 #endif /* __TIM_H__ */
-
-
-extern TIM_HandleTypeDef htim4;
-void MX_TIM4_Init(void);

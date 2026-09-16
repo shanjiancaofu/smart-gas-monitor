@@ -8,6 +8,9 @@
 
 void bsp_servo_init(void)
 {
+    /* 自己开 TIM4 时钟，不依赖 msp.c 里的 HAL_TIM_PWM_MspInit：TIM4 不在 .ioc
+     * 里，那个函数在 CubeMX 重新生成时会被整个删掉（见 tim.c 的说明）。 */
+    __HAL_RCC_TIM4_CLK_ENABLE();
     (void)HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
     bsp_servo_set(false);
 }
