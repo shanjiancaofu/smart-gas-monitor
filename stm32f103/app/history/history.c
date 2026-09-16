@@ -106,9 +106,22 @@ bool history_init(history_t *h, const config_io_t *io)
         return false;
     }
     h->next_seq = (uint16_t)(h->next_seq + 1u);
+    if (h->next_seq == HISTORY_SEQ_NONE) {
+        h->next_seq = 1u;
+    }
     /* 最新一条之后的那个槽位既是最旧的一条，也是下一个要写的槽位，
      * 无论记录是否已经回绕。 */
     h->next_slot = (uint16_t)((newest + 1u) % HISTORY_SLOTS);
+    /* Only expose the contiguous valid run ending at the newest record. */
+    h->count = 0u;
+    for (i = 0; i < HISTORY_SLOTS; ++i) {
+        unsigned slot = (newest + HISTORY_SLOTS - i) % HISTORY_SLOTS;
+        history_entry_t entry;
+        if (!read_slot(h, slot, &entry)) {
+            break;
+        }
+        ++h->count;
+    }
     return true;
 }
 
@@ -136,6 +149,9 @@ bool history_add(history_t *h, history_entry_t *entry)
     /* 写入确认之后才记账，因此写失败会在同一个槽位重试，而不是留下一个
      * 空洞。 */
     h->next_seq = (uint16_t)(h->next_seq + 1u);
+    if (h->next_seq == HISTORY_SEQ_NONE) {
+        h->next_seq = 1u;
+    }
     if (h->count < HISTORY_SLOTS) {
         ++h->count;
     }

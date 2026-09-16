@@ -3,6 +3,10 @@
 #include "bsp_led.h"
 #include "bsp_relay.h"
 
+#define BEEP_ON_TICKS 18u
+#define BEEP_STEP_TICKS 30u
+#define BEEP_GROUP_GAP_TICKS 68u
+
 void alarm_force_safe(void)
 {
     bsp_relay_close();
@@ -38,6 +42,11 @@ void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick)
         bsp_relay_close();
     }
     bool buzzer = false;
+    if (active && gas->state == GAS_FAULT) {
+        bsp_buzzer_set(duration != GAS_BUZZER_OFF);
+        bsp_led_set(false, false, true, open);
+        return;
+    }
     if (active && (duration == GAS_BUZZER_FOREVER_MS ||
                    (uint32_t)(tick - alarm->started_tick) < duration / GAS_TICK_MS)) {
         unsigned count = 0;
@@ -52,10 +61,10 @@ void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick)
             count = 1;
         }
         /* 每个“滴”响 100 ms，间隔 50 ms；报警传感器越多，一轮里的滴声越多。 */
-        phase = elapsed % (count * 30u + 68u);
+        phase = elapsed % (count * BEEP_STEP_TICKS + BEEP_GROUP_GAP_TICKS);
         for (unsigned i = 0; i < count; ++i) {
-            uint32_t start = i * 30u;
-            if (phase >= start && phase < start + 18u) {
+            uint32_t start = i * BEEP_STEP_TICKS;
+            if (phase >= start && phase < start + BEEP_ON_TICKS) {
                 buzzer = true;
             }
         }

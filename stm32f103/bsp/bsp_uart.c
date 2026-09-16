@@ -182,7 +182,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *uart)
         return;
     }
     rx_push(s, s->rx_byte);
-    (void)HAL_UART_Receive_IT(s->uart, &s->rx_byte, 1);
+    s->ready = HAL_UART_Receive_IT(s->uart, &s->rx_byte, 1) == HAL_OK;
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *uart)
