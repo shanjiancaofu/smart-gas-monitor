@@ -51,6 +51,24 @@ int main(void)
     display_key(&display, &gas, &history, GAS_KEY_DOWN, 104);
     assert(gas.config.alarm[GAS_MQ6] == 2400);
 
+    /* 参数页要把全部 5 个可调项都画出来，光标跟着 item 走。此前它只循环
+     * GAS_COUNT 画三路通道，KEY5 切到采样周期或蜂鸣器档位时光标会整个消失，
+     * 那两项只能盲调。 */
+    {
+        static const char *const names[GAS_ITEM_COUNT] = {"MQ4", "MQ6", "MQ7", "PERIOD",
+                                                          "BUZZER"};
+        unsigned item;
+        for (item = 0; item < GAS_ITEM_COUNT; ++item) {
+            gas.item = (uint8_t)item;
+            /* 重绘被 DISPLAY_REFRESH_MS 限流，两次调用至少要隔这么久。 */
+            display_update(&display, &gas, &history, true,
+                           200u + item * DISPLAY_REFRESH_MS);
+            assert(strstr(rows[item + 1u], names[item]) != NULL);
+            assert(rows[item + 1u][0] == '>');
+        }
+        assert(strstr(rows[0], "SETTINGS") != NULL);
+    }
+
     display_key(&display, &gas, &history, GAS_KEY_PAGE, 105);
     assert(display.page == DISPLAY_HISTORY);
     history.count = 3;
@@ -81,7 +99,11 @@ int main(void)
     gas.adc[GAS_MQ6] = 3000;
     display_update(&display, &gas, &history, true, 200);
     assert(strstr(rows[0], "ALARM") != NULL);
-    assert(strstr(rows[6], "KEY4") != NULL);
+    /* 报警页三行的内容和顺序：最后一行是第三路通道。这里原先断言的是
+     * "KEY4"，那是报警页上还没有通道列表时的写法；KEY4 现在走 SAFE_WAIT
+     * 那条路径提示。alarm_mask 只置了 MQ6，所以只有它带 '>' 标记。 */
+    assert(strstr(rows[4], ">MQ6") != NULL);
+    assert(strstr(rows[6], "MQ7") != NULL);
 
     puts("PASS: display page/item keys/history/alarm overlay/confirm");
     return 0;

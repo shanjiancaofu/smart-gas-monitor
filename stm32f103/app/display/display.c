@@ -53,13 +53,27 @@ static void draw_realtime(display_t *d, const gas_t *m)
     putf(d, 6u, true, "%-7s %s", gas_state_name(m->state), valve_name(gas_valve_open(m)));
 }
 
+/* 可调项有 5 个，加上标题一共 6 行。大号字体一行占两个 page，8 个 page 只放
+ * 得下 4 行，于是采样周期和蜂鸣器档位被挤出屏幕：按 KEY5 切到那两项时光标整
+ * 个消失，只能盲调。这里改用小号字体，一行一个 page，6 行放得下。
+ *
+ * 行号直接由 gas_item_t 推出来（标题占 0，之后每项一行），免得以后加可调项时
+ * 又漏画——这正是这次出问题的地方。 */
 static void draw_settings(display_t *d, const gas_t *m, bool storage_ok)
 {
+    char value[16];
     unsigned i;
     (void)storage_ok;
-    putf(d, 0u, true, "SETTINGS");
-    for (i = 0; i < GAS_COUNT; ++i)
-        putf(d, (i + 1u) * 2u, true, "%c%s %4u", m->item == (uint8_t)i ? '>' : ' ', gas_channel_name((gas_channel_t)i), m->config.alarm[i]);
+    putf(d, 0u, false, "SETTINGS");
+    for (i = 0; i < GAS_COUNT; ++i) {
+        putf(d, i + 1u, false, "%c%s %u", m->item == (uint8_t)i ? '>' : ' ',
+             gas_channel_name((gas_channel_t)i), m->config.alarm[i]);
+    }
+    putf(d, GAS_ITEM_PERIOD + 1u, false, "%cPERIOD %uMS",
+         m->item == GAS_ITEM_PERIOD ? '>' : ' ', m->config.sample_period_ms);
+    config_buzzer_name(m->config.buzzer, value, sizeof(value));
+    putf(d, GAS_ITEM_BUZZER + 1u, false, "%cBUZZER %s",
+         m->item == GAS_ITEM_BUZZER ? '>' : ' ', value);
 }
 
 static void draw_alarm(display_t *d, const gas_t *m)
