@@ -14,25 +14,19 @@ static const soft_bus_t soft_buses[2] = {
     {GPIOB, GPIO_PIN_10, GPIO_PIN_11},   /* &hi2c2：存储 */
 };
 
-/* 数据位的半个时钟周期延时。30 次循环在实物上（72 MHz、GCC -Og）约 5.7 us，
- * SCL 一个完整周期约 11 us、总线速率约 88 kHz；整屏 1024 字节刷新因此从 747 ms
- * 降到约 155 ms。
+/* 半个时钟周期的延时。
  *
- * 这个数是实测出来的，不是一个"理论值"：同样的循环次数在不同编译结果下长度能
- * 差五倍。140 次循环在 Proteus 用的 Keil 构建里约 5.4 us，在实物的 GCC -Og 构
- * 建里却有 26 us——总线因此只跑到 12.6 kHz，整屏刷新要 747 ms，把采样器挤过了
- * 超时线，KEY4 就再也解不开锁。 */
-#define I2C_DELAY_LOOPS 30u
-
-/* 起始和停止条件专用的延时，比数据位长得多。
+ * 取 140：Proteus 的 I2CMEM 模型对 SCL 的**每一个**高、低电平都要求下限
+ * （TD_CLK_HIGH = 4 us、TD_CLK_LOW = 4.7 us），低于它就按位拒绝通信——存储会
+ * 完全写不进去，而 OLED 用的另一个模型要求宽松、照样能亮，所以"屏幕正常"证明
+ * 不了"存储也正常"。140 次循环在 Keil 构建里约 5.4 us，两个下限都满足；实物上
+ * （GCC -Og）约 26 us，整屏 1024 字节刷新 747 ms，仍在采样超时窗口（10 个采样
+ * 周期 = 1 s）以内。
  *
- * I2C 规范里 tHD;STA 和 tSU;STO 本来就只约束这两个条件（标准模式 4.7 us），
- * 数据位的建立/保持要求只有几百纳秒。Proteus 的存储模型也只检查这两处，所以
- * 只有这里需要慢下来；数据位照旧跑快，总线的整体速度不受影响。
- *
- * 60 次循环在 Keil 构建里约 6.2 us，满足 4.7 us 的下限；实物上约 11 us，只在
- * 起始/停止时多花几微秒。 */
-#define I2C_EDGE_DELAY_LOOPS 60u
+ * 这个数是实测出来的，不同编译结果下同样的循环次数长度能差五倍：140 次在 Keil
+ * 里是 5.4 us，在 GCC -Og 里是 26 us。改小之前先看一眼仿真日志里有没有
+ * "[I2CMEM] ... setup time violated"。 */
+#define I2C_DELAY_LOOPS 140u
 
 static void i2c_delay_loops(unsigned loops)
 {
@@ -43,11 +37,6 @@ static void i2c_delay_loops(unsigned loops)
 static void i2c_delay(void)
 {
     i2c_delay_loops(I2C_DELAY_LOOPS);
-}
-
-static void i2c_edge_delay(void)
-{
-    i2c_delay_loops(I2C_EDGE_DELAY_LOOPS);
 }
 
 /* 句柄只用来选总线，不驱动硬件。 */
@@ -98,8 +87,11 @@ static void sda_output(const soft_bus_t *bus)
 
     gpio.Pin = bus->sda;
     gpio.Mode = GPIO_MODE_OUTPUT_OD;
-    /* 同 sda_input()：没有外部上拉时，开漏写 1 只是把线放开，带上拉才是高。 */
-    gpio.Pull = GPIO_PULLUP;
+    /* 输出模式刻意不加片内上拉。Proteus 的 CM3 模型把开漏引脚上的上拉当成一个
+     * 驱动源，从机拉低应答时就报 "Logic contention on net"。这里不需要它：所有
+     * 读线的动作（sda_get）都发生在 sda_input() 之后，而那条路径上拉是留着的，
+     * 输出阶段主机只写不读。实物的正规做法也是靠模块自带的 4.7k 外部上拉。 */
+    gpio.Pull = GPIO_NOPULL;
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(bus->port, &gpio);
 }
@@ -111,7 +103,7 @@ void bsp_i2c_init(void)
 
     __HAL_RCC_GPIOB_CLK_ENABLE();
     gpio.Mode = GPIO_MODE_OUTPUT_OD;
-    gpio.Pull = GPIO_PULLUP;
+    gpio.Pull = GPIO_NOPULL;   /* 理由见 sda_output() */
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
     gpio.Pin = soft_buses[0].scl | soft_buses[0].sda | soft_buses[1].scl | soft_buses[1].sda;
     HAL_GPIO_Init(GPIOB, &gpio);
@@ -126,11 +118,11 @@ static void i2c_start(const soft_bus_t *bus)
 {
     sda_output(bus);
     sda_set(bus, true);
-    i2c_edge_delay();
+    i2c_delay();
     scl_set(bus, true);
-    i2c_edge_delay();
+    i2c_delay();
     sda_set(bus, false);   /* SCL 高时 SDA 下降 = 起始条件 */
-    i2c_edge_delay();
+    i2c_delay();
     scl_set(bus, false);
     i2c_delay();
 }
@@ -142,7 +134,7 @@ static void i2c_stop(const soft_bus_t *bus)
     i2c_delay();
     scl_set(bus, true);
     /* 这一等就是 tSU;STO：SCL 抬起来之后要停够时间才允许动 SDA。 */
-    i2c_edge_delay();
+    i2c_delay();
     sda_set(bus, true);
     i2c_delay();
 }
