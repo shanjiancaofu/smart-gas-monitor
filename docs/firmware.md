@@ -1,7 +1,17 @@
-# 固件说明
+# Firmware build and runtime notes
 
-本分支使用 STM32CubeMX 生成 HAL 初始化代码，使用 Keil5 编译和下载。工程文件为 `stm32f103/MDK-ARM/smart_gas_monitor.uvprojx`。
+The STM32F103 firmware is organized as `main -> app -> gas/alarm/config/history/protocol/display -> bsp -> HAL`.
 
-Keil5 输出分为两个目录：最终产物位于 `build/keil5/Artifacts/`，中间文件位于 `build/keil5/Listings/`。其中 `smart_gas_monitor.hex` 可直接用于烧录，`.axf` 用于调试；需要 BIN 时运行 `tools/keil_make_bin.ps1`。工程代码按 main → app → bsp → HAL 组织：app/ 负责燃气状态机、报警、配置、历史、协议和 OLED 页面；bsp/ 负责硬件访问。
+## Keil5 (course primary build)
 
-当前硬件方案为 MQ4/MQ6/MQ7、五按键、SSD1306 OLED、AT24C64 和 HC-05。报警或故障会设置 lockout，环境恢复后仍需现场按键解除。
+Open `stm32f103/MDK-ARM/smart_gas_monitor.uvprojx` and build the `smart_gas_monitor` target.
+
+- Final files: `build/keil5/Artifacts/` (`.axf`, `.hex`, `.map`)
+- Intermediate files: `build/keil5/Listings/`
+- Generate a binary with `tools/keil_make_bin.ps1` after adding Keil ARMCC `fromelf.exe` to PATH.
+
+## CMake/Ninja (cross-check build)
+
+Use `cmake --preset arm-debug` or `cmake --preset arm-release`, then `cmake --build --preset arm-debug` or `cmake --build --preset arm-release`. Final `.elf`, `.hex`, and `.bin` files are written directly to the selected `build/arm-*` directory.
+
+MQ thresholds are raw 12-bit ADC counts, not calibrated ppm values. During the 60-second MQ warm-up the valve remains closed and gas threshold alarms are suppressed; ADC and sampling faults still enter `FAULT`.
