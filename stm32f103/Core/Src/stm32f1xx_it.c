@@ -22,6 +22,8 @@
 #include "stm32f1xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+/* 五个 fault handler 都调用 alarm_force_safe() 把阀门、风扇和蜂鸣器
+ * 压到安全状态，再停在这里。它们是最后一道防线，见 alarm/alarm.c。 */
 #include "alarm/alarm.h"
 #include "app.h"
 /* USER CODE END Includes */
@@ -73,6 +75,8 @@ extern UART_HandleTypeDef huart2;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
+  /* 可能早于 MX_GPIO_Init()，那时 GPIOA 时钟还没开。 */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   alarm_force_safe();
 
   /* USER CODE END NonMaskableInt_IRQn 0 */
@@ -89,6 +93,8 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+  /* 可能早于 MX_GPIO_Init()，那时 GPIOA 时钟还没开。 */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   alarm_force_safe();
 
   /* USER CODE END HardFault_IRQn 0 */
@@ -105,6 +111,8 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
+  /* 可能早于 MX_GPIO_Init()，那时 GPIOA 时钟还没开。 */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   alarm_force_safe();
 
   /* USER CODE END MemoryManagement_IRQn 0 */
@@ -121,6 +129,8 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
+  /* 可能早于 MX_GPIO_Init()，那时 GPIOA 时钟还没开。 */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   alarm_force_safe();
 
   /* USER CODE END BusFault_IRQn 0 */
@@ -137,6 +147,8 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
+  /* 可能早于 MX_GPIO_Init()，那时 GPIOA 时钟还没开。 */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   alarm_force_safe();
 
   /* USER CODE END UsageFault_IRQn 0 */
