@@ -85,3 +85,6 @@ __pycache__/
 stm32f103/MDK-ARM/DebugConfig/
 stm32f103/MDK-ARM/RTE/
 stm32f103/MDK-ARM/smart_gas_monitor/
+
+# OpenOCD / flashing logs
+*.log
