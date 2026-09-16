@@ -22,6 +22,11 @@
 
 /* USER CODE BEGIN 0 */
 
+/* 两个 RX（PA10、PA3）配成带上拉输入，而不是 CubeMX 默认的无上拉。UART 空
+ * 闲电平是高，链路另一端没驱动时这条线会悬空、捡噪声成字节；实测悬空时
+ * USART2 的接收环里进来过 58 个噪声字节，其中只要凑巧有一个 LF 就会被当成
+ * 一整行交给协议解析，回一条 ERR UNKNOWN 出去。上拉把它钉在空闲电平上。 */
+
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart1;
@@ -110,7 +115,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 
     GPIO_InitStruct.Pin = GPIO_PIN_10;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     /* USART1 interrupt Init */
@@ -140,7 +145,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 
     GPIO_InitStruct.Pin = GPIO_PIN_3;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     /* USART2 interrupt Init */
