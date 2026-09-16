@@ -28,6 +28,7 @@
 /* USER CODE BEGIN Includes */
 #include "app.h"
 #include "alarm/alarm.h"
+#include "bsp_buzzer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -98,6 +99,10 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  /* MX_GPIO_Init() 里那句 HAL_GPIO_WritePin 把 BUZZER_Pin 也拉低了，那是按高
+   * 电平触发生成的。本项目的蜂鸣器低电平触发，所以上电到 alarm_init() 之间它会
+   * 一直响；这里先摆回空闲电平，别等 app_init()。 */
+  bsp_buzzer_set(false);
   if (!app_init())
   {
     Error_Handler();
