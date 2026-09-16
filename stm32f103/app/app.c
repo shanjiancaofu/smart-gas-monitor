@@ -40,8 +40,7 @@ typedef struct {
     bsp_uart_t link_usb, link_radio;
     gas_state_t last_state;
     uint32_t last_tick, last_save_attempt;
-    bool sensor_ready, storage_ok, last_lockout, test_mode, key5_held;
-    uint32_t key5_start_ms;
+    bool sensor_ready, storage_ok, last_lockout;
 } app_t;
 
 static app_t system_app;
@@ -157,10 +156,6 @@ static uint32_t sample_update(app_t *app)
             app->last_tick = ticks;
         }
         valid = app->sensor_ready && gas_read_samples(bsp_adc_read, &app->sensor, values);
-        if (app->test_mode) {
-            values[GAS_MQ6] = 4095u;
-            valid = true;
-        }
         now = HAL_GetTick();
         gas_sample(&app->monitor, values, valid, now);
     }
@@ -172,19 +167,6 @@ static void keys_update(app_t *app, uint32_t now)
 {
     uint8_t keys = bsp_key_poll(&app->keys, now);
     unsigned i;
-
-    /* KEY5 鐭寜浠嶇劧鍒囨崲璁剧疆椤癸紱鎸佺画鎸変綇 1.5 绉掕繘鍏ョ瓟杈╂祴璇曟ā寮忋€?*/
-    if (bsp_key_is_down(&app->keys, KEY_COUNT - 1u)) {
-        if (!app->key5_held) {
-            app->key5_held = true;
-            app->key5_start_ms = now;
-        } else if (!app->test_mode && (uint32_t)(now - app->key5_start_ms) >= 1500u) {
-            app->test_mode = true;
-            app->display.page = DISPLAY_ALARM;
-        }
-    } else {
-        app->key5_held = false;
-    }
 
     for (i = 0; i < KEY_COUNT; ++i) {
         if (keys & (1u << i)) {

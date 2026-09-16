@@ -32,7 +32,7 @@ static history_entry_t make(uint16_t mq4, uint32_t uptime_s, uint8_t mask)
     memset(&e, 0, sizeof(e));
     e.adc[GAS_MQ4] = mq4;
     e.adc[GAS_MQ6] = (uint16_t)(mq4 + 100u);
-    e.adc[GAS_MQ6] = (uint16_t)(mq4 + 200u);
+    e.adc[GAS_MQ7] = (uint16_t)(mq4 + 200u);
     e.uptime_s = uptime_s;
     e.alarm_mask = mask;
     return e;

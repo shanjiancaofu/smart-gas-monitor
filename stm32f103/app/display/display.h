@@ -15,7 +15,8 @@ typedef enum {
     DISPLAY_SETTINGS,
     DISPLAY_HISTORY,
     DISPLAY_PAGE_COUNT,
-    DISPLAY_ALARM
+    DISPLAY_ALARM,
+    DISPLAY_FAULT
 } display_page_t;
 
 typedef struct {

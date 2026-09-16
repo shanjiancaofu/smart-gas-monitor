@@ -95,6 +95,15 @@ static void draw_alarm(display_t *d, const gas_t *m)
     putf(d, 7u, false, "AFTER SAFE 3S");
 }
 
+static void draw_fault(display_t *d)
+{
+    putf(d, 0u, false, "!!! FAULT !!!");
+    putf(d, 1u, false, "ADC/COMM ERROR");
+    putf(d, 3u, false, "VALVE:CLOSE");
+    putf(d, 5u, false, "CHECK HARDWARE");
+    putf(d, 7u, false, "PRESS KEY4 AFTER SAFE");
+}
+
 static void draw_history(display_t *d, const history_t *h)
 {
     history_entry_t entry;
@@ -149,7 +158,8 @@ void display_update(display_t *d, const gas_t *m, const history_t *h, bool stora
     }
     /* 鎶ヨ鏃堕《涓婃姤璀﹂〉锛屼笉绠′娇鐢ㄨ€呭仠鍦ㄩ偅涓€椤碉紱鎶ヨ瑙ｉ櫎鍚庤嚜鍔ㄩ€€鍥炰粬鍘熸潵閭ｄ竴椤碉紝
      * 鍥犱负 d->page 涓€鐩存槸浠栫殑閫夋嫨锛屾病鏈夎鎶ヨ鏀瑰啓銆?*/
-    screen = m->state == GAS_ALARM ? DISPLAY_ALARM : d->page;
+    screen = m->state == GAS_ALARM ? DISPLAY_ALARM :
+             (m->state == GAS_FAULT ? DISPLAY_FAULT : d->page);
     if (screen == d->screen && (uint32_t)(now - d->last_draw_ms) < DISPLAY_REFRESH_MS) {
         return;
     }
@@ -172,6 +182,9 @@ void display_update(display_t *d, const gas_t *m, const history_t *h, bool stora
         break;
     case DISPLAY_ALARM:
         draw_alarm(d, m);
+        break;
+    case DISPLAY_FAULT:
+        draw_fault(d);
         break;
     default:
         draw_realtime(d, m);

@@ -263,7 +263,7 @@ static const uint8_t font8x16[SSD1306_CHAR_COUNT][16] = {
 /* 水平寻址、128x64、打开电荷泵、整体不做镜像。 */
 static const uint8_t init_sequence[] = {
     0xAE,       /* 配置期间先关显示 */
-    0x20, 0x00, /* 水平寻址模式 */
+    0x20, 0x02, /* Page addressing mode; refresh uses B0..B7 page commands. */
     0xB0,       /* 从 page 0 开始 */
     0xC8,       /* COM 扫描方向重映射 */
     0x00, 0x10, /* 列地址 0 */
