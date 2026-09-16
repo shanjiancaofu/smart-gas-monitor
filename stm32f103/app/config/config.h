@@ -41,7 +41,7 @@ _Static_assert(GAS_BUZZER_MAX_S * 1000u < GAS_BUZZER_FOREVER_MS,
 typedef struct {
     uint16_t alarm[GAS_COUNT];
     uint16_t sample_period_ms;
-    /* GAS_BUZZER_OFF / 1..GAS_BUZZER_MAX_S 绉?/ GAS_BUZZER_ALWAYS銆?*/
+    /* GAS_BUZZER_OFF, 1..GAS_BUZZER_MAX_S seconds, or GAS_BUZZER_ALWAYS. */
     uint8_t buzzer;
     bool lockout;
 } gas_config_t;
@@ -70,6 +70,5 @@ bool config_valid(const gas_config_t *config);
 void config_buzzer_name(uint8_t value, char *out, size_t size);
 uint16_t config_buzzer_duration_ms(const gas_config_t *config);
 #endif
-
 
 
