@@ -23,10 +23,10 @@
 | PA4 | ADC1_IN4 | MQ-7 AO 分压节点 |
 | PA2 / PA3 | USART2_TX / RX | HC-05 RXD / TXD |
 | PA9 / PA10 | USART1_TX / RX | USB-TTL RXD / TXD |
-| PB6 / PB7 | I2C1 SCL / SDA | SSD1306 OLED |
+| PB8 / PB9 | I2C1 SCL / SDA (remapped) | SSD1306 OLED |
 | PB10 / PB11 | I2C2 SCL / SDA | AT24C64 |
-| PB8 | GPIO | 绿 LED，NORMAL |
-| PB9 | GPIO | 黄 LED，WARNING |
+| PB0 | GPIO | 绿 LED，NORMAL |
+| PB1 | GPIO | 黄 LED，WARNING |
 | PA6 | GPIO | 红 LED，ALARM/FAULT |
 | PA7 | GPIO | 有源蜂鸣器 |
 | PA8 | GPIO | 继电器 IN，默认关阀 |
@@ -55,8 +55,8 @@ KEY1～KEY4 使用内部上拉、按下接 GND；KEY5 使用 PB5 内部上拉轮
 | --- | --- |
 | VCC | 3.3 V |
 | GND | GND |
-| SCL | PB6 |
-| SDA | PB7 |
+| SCL | PB8 |
+| SDA | PB9 |
 
 常见 SSD1306 地址为 `0x3C`，以实际模块为准。驱动使用 Page Addressing Mode，并按 dirty page 刷新。
 

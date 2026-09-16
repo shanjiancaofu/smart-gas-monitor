@@ -85,9 +85,9 @@ void Error_Handler(void);
 #define RELAY_GPIO_Port GPIOA
 #define KEY5_Pin GPIO_PIN_5
 #define KEY5_GPIO_Port GPIOB
-#define LED_GREEN_Pin GPIO_PIN_8
+#define LED_GREEN_Pin GPIO_PIN_0
 #define LED_GREEN_GPIO_Port GPIOB
-#define LED_YELLOW_Pin GPIO_PIN_9
+#define LED_YELLOW_Pin GPIO_PIN_1
 #define LED_YELLOW_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
