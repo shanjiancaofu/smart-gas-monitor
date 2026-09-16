@@ -3,6 +3,12 @@
 #include <stdio.h>
 #include <string.h>
 
+/* 用例里的绝对时刻都从这里起步：run_to_normal() 跑完时最后一次采样的时刻。
+ * 之后的采样必须落在这个时刻的采样超时窗口（3 个采样周期）以内，否则
+ * gas_sample() 会把它读成采样中断而判 FAULT，而不是要看的状态变化。
+ * 写成表达式而不是字面量，是为了改 GAS_WARMUP_MS 时这些时刻跟着走。 */
+#define T0 (GAS_WARMUP_MS + GAS_SAFE_HOLD_MS)
+
 static void sample(gas_t *m, uint32_t now, uint16_t a, uint16_t b, uint16_t c)
 {
     uint16_t values[GAS_COUNT] = {a, b, c};
@@ -27,43 +33,44 @@ static void test_states(void)
         uint16_t values[GAS_COUNT] = {500, 500, 500};
         run_to_normal(&m, 0);
         values[i] = gas_warning_threshold(m.config.alarm[i]);
-        gas_sample(&m, values, true, 63100);
+        gas_sample(&m, values, true, (T0 + 100u));
         assert(m.state == GAS_WARNING && gas_valve_open(&m));
         values[i] = m.config.alarm[i];
-        gas_sample(&m, values, true, 63200);
+        gas_sample(&m, values, true, (T0 + 200u));
         assert(m.state == GAS_ALARM && !gas_valve_open(&m));
         assert(m.alarm_mask == (1u << i) && m.alarm_count == 1);
         m.dirty = false;
-        sample(&m, 63250, values[0], values[1], values[2]);
+        sample(&m, (T0 + 250u), values[0], values[1], values[2]);
         assert(m.state == GAS_ALARM && !m.dirty);
-        gas_key(&m, GAS_KEY_CONFIRM, 63250);
+        gas_key(&m, GAS_KEY_CONFIRM, (T0 + 250u));
         assert(!gas_valve_open(&m));
-        for (t = 63300; t <= 66300; t += 100) sample(&m, t, 500, 500, 500);
+        for (t = (T0 + 300u); t <= (T0 + 3300u); t += 100) sample(&m, t, 500, 500, 500);
         assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
         assert(!gas_valve_open(&m));
-        gas_key(&m, GAS_KEY_CONFIRM, 66300);
+        gas_key(&m, GAS_KEY_CONFIRM, (T0 + 3300u));
         assert(gas_valve_open(&m));
     }
     run_to_normal(&m, 0);
-    gas_update(&m, 63500);
+    gas_update(&m, (T0 + 500u));
     assert(m.state == GAS_FAULT && !gas_valve_open(&m));
     assert(m.config.lockout && m.dirty);
     m.dirty = false;
-    gas_update(&m, 63501);
+    gas_update(&m, (T0 + 501u));
     assert(!m.dirty);
-    sample(&m, 63600, 500, 500, 500);
-    gas_key(&m, GAS_KEY_CONFIRM, 63600);
+    sample(&m, (T0 + 600u), 500, 500, 500);
+    gas_key(&m, GAS_KEY_CONFIRM, (T0 + 600u));
     assert(!gas_valve_open(&m));
-    gas_sample(&m, NULL, false, 63700);
+    gas_sample(&m, NULL, false, (T0 + 700u));
     assert(m.state == GAS_FAULT);
-    sample(&m, 63800, 4096, 0, 0);
+    sample(&m, (T0 + 800u), 4096, 0, 0);
     assert(m.state == GAS_FAULT);
     run_to_normal(&m, 0);
-    sample(&m, 64000, 500, 500, 500);
+    sample(&m, (T0 + 1000u), 500, 500, 500);
     assert(m.state == GAS_SAFE_WAIT && !gas_valve_open(&m));
     assert(!m.reset_ready);
-    /* 预热计时和安全计时都要跨过回绕点。 */
-    run_to_normal(&m, UINT32_MAX - 61000u);
+    /* 预热计时和安全计时都要跨过回绕点。起点选在距回绕 GAS_WARMUP_MS+1000
+     * 处，这样回绕落在预热结束之后、这一段跑完之前，两个计时都能跨过它。 */
+    run_to_normal(&m, UINT32_MAX - (GAS_WARMUP_MS + 1000u));
 }
 static void test_power_up_opens(void)
 {
@@ -132,15 +139,15 @@ static void test_low_threshold_recovers(void)
     run_to_normal(&m, 0);
     /* 换页到设置页，默认就选中第一项 MQ4，再一路减到下限。 */
     assert(m.item == GAS_ITEM_MQ4);
-    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_DOWN, 63000);
+    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_DOWN, T0);
     assert(m.config.alarm[GAS_MQ4] == GAS_THRESHOLD_MIN);
     assert(m.state == GAS_ALARM && !gas_valve_open(&m));
     /* 安全带按比例取，阈值调到量程最底端时洁净空气仍然够得着；若用固定值，
      * 这种情况永远恢复不了。 */
-    for (t = 63100; t <= 66100; t += 100) sample(&m, t, 100, 100, 100);
+    for (t = (T0 + 100u); t <= (T0 + 3100u); t += 100) sample(&m, t, 100, 100, 100);
     assert(m.reset_ready);
     assert(m.state == GAS_SAFE_WAIT && !gas_valve_open(&m));
-    gas_key(&m, GAS_KEY_CONFIRM, 66100);
+    gas_key(&m, GAS_KEY_CONFIRM, (T0 + 3100u));
     assert(gas_valve_open(&m));
 }
 static void test_keys(void)
@@ -149,17 +156,17 @@ static void test_keys(void)
     unsigned i;
     run_to_normal(&m, 0);
     /* 停在首页时加减键不该改任何东西：首页没有可调项。 */
-    gas_key(&m, GAS_KEY_CONFIRM, 63000);
+    gas_key(&m, GAS_KEY_CONFIRM, T0);
     assert(!m.dirty);
     /* 换页到设置页，默认选中 MQ4。 */
     assert(m.item == GAS_ITEM_MQ4);
-    gas_key(&m, GAS_KEY_UP, 63000);
+    gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.alarm[GAS_MQ4] == 2450 && m.dirty);
-    assert(!gas_save_due(&m, 64999));
-    assert(gas_save_due(&m, 65000));
-    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_UP, 63000);
+    assert(!gas_save_due(&m, (T0 + 1999u)));
+    assert(gas_save_due(&m, (T0 + 2000u)));
+    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.alarm[GAS_MQ4] == GAS_THRESHOLD_MAX);
-    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_DOWN, 63000);
+    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_DOWN, T0);
     assert(m.config.alarm[GAS_MQ4] == GAS_THRESHOLD_MIN);
     assert(m.state == GAS_ALARM && !gas_valve_open(&m));
     /* 换页键跳过报警页：它在循环里，但报警页只能由报警状态顶上来。 */
@@ -181,17 +188,17 @@ static void test_sample_period(void)
     run_to_normal(&m, 0);
     /* KEY1 换页到设置页，KEY2 换到「采样周期」那一项。 */
     assert(m.item == GAS_ITEM_MQ4);
-    for (i = 0; i < GAS_ITEM_PERIOD; ++i) gas_key(&m, GAS_KEY_SELECT, 63000);
+    for (i = 0; i < GAS_ITEM_PERIOD; ++i) gas_key(&m, GAS_KEY_SELECT, T0);
     assert(m.item == GAS_ITEM_PERIOD);
-    gas_key(&m, GAS_KEY_UP, 63000);
+    gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.sample_period_ms == 200 && m.dirty);
     assert(gas_sample_timeout_ms(&m) == 600);
     /* 停顿判定的窗口跟着配置的采样周期走，不是一个固定常数。 */
-    for (t = 63100; t <= 66900; t += 200) sample(&m, t, 500, 500, 500);
+    for (t = (T0 + 100u); t <= (T0 + 3900u); t += 200) sample(&m, t, 500, 500, 500);
     assert(m.state == GAS_NORMAL);
-    gas_update(&m, 66900 + 599u);
+    gas_update(&m, (T0 + 3900u) + 599u);
     assert(m.state == GAS_NORMAL);
-    gas_update(&m, 66900 + 600u);
+    gas_update(&m, (T0 + 3900u) + 600u);
     assert(m.state == GAS_FAULT && !gas_valve_open(&m));
 }
 /* 取值 → 毫秒 → 名字这条链，以及它在两端和越界处的行为。 */
@@ -252,32 +259,32 @@ static void test_buzzer_keys(void)
     gas_t m;
     unsigned i;
     run_to_normal(&m, 0);
-    for (i = 0; i < GAS_ITEM_BUZZER; ++i) gas_key(&m, GAS_KEY_SELECT, 63000);
+    for (i = 0; i < GAS_ITEM_BUZZER; ++i) gas_key(&m, GAS_KEY_SELECT, T0);
     assert(m.item == GAS_ITEM_BUZZER);
     m.dirty = false;
 
     /* 加号一路加到顶就停在「一直响」：加的语义永远是「响得更久」，不做环绕
      * 回到「不响」——那会让同一个按键在两端之间来回跳。 */
-    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_UP, 63000);
+    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == GAS_BUZZER_ALWAYS && m.dirty);
-    gas_key(&m, GAS_KEY_UP, 63000);
+    gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == GAS_BUZZER_ALWAYS);
 
-    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_DOWN, 63000);
+    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_DOWN, T0);
     assert(m.config.buzzer == GAS_BUZZER_OFF);
-    gas_key(&m, GAS_KEY_DOWN, 63000);
+    gas_key(&m, GAS_KEY_DOWN, T0);
     assert(m.config.buzzer == GAS_BUZZER_OFF);
 
     /* 一步一格，中间没有跳档：OFF → 1S → 2S → … → 60S → ALWAYS。 */
-    gas_key(&m, GAS_KEY_UP, 63000);
+    gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == 1u);
-    gas_key(&m, GAS_KEY_UP, 63000);
+    gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == 2u);
-    for (i = 0; i < GAS_BUZZER_MAX_S - 2u; ++i) gas_key(&m, GAS_KEY_UP, 63000);
+    for (i = 0; i < GAS_BUZZER_MAX_S - 2u; ++i) gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == GAS_BUZZER_MAX_S);
-    gas_key(&m, GAS_KEY_UP, 63000);
+    gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == GAS_BUZZER_ALWAYS);
-    gas_key(&m, GAS_KEY_DOWN, 63000);
+    gas_key(&m, GAS_KEY_DOWN, T0);
     assert(m.config.buzzer == GAS_BUZZER_MAX_S);
 
     /* 改蜂鸣器时长不影响别的设置项，别的设置项也不影响它。 */
@@ -294,19 +301,19 @@ static void test_buzzer_set(void)
 
     run_to_normal(&m, 0);
     /* 60 以内逐档都对，61 是「一直响」。 */
-    assert(gas_set_buzzer(&m, 1u, 63000) && m.config.buzzer == 1u);
-    assert(gas_set_buzzer(&m, GAS_BUZZER_MAX_S, 63000));
+    assert(gas_set_buzzer(&m, 1u, T0) && m.config.buzzer == 1u);
+    assert(gas_set_buzzer(&m, GAS_BUZZER_MAX_S, T0));
     assert(m.config.buzzer == GAS_BUZZER_MAX_S);
-    assert(gas_set_buzzer(&m, GAS_BUZZER_ALWAYS, 63000));
+    assert(gas_set_buzzer(&m, GAS_BUZZER_ALWAYS, T0));
     assert(m.config.buzzer == GAS_BUZZER_ALWAYS);
-    assert(gas_set_buzzer(&m, GAS_BUZZER_OFF, 63000));
+    assert(gas_set_buzzer(&m, GAS_BUZZER_OFF, T0));
     assert(m.config.buzzer == GAS_BUZZER_OFF && config_buzzer_duration_ms(&m.config) == 0u);
 
     /* 超出编码范围的值必须在收窄成 uint8 之前就被拒：256 截断成 0 会成为
      * 一个合法取值，静默地把蜂鸣器关掉，而调用者要的显然不是这个。 */
-    assert(!gas_set_buzzer(&m, GAS_BUZZER_ALWAYS + 1u, 63000));
-    assert(!gas_set_buzzer(&m, 256u, 63000));
-    assert(!gas_set_buzzer(&m, 0xffffu, 63000));
+    assert(!gas_set_buzzer(&m, GAS_BUZZER_ALWAYS + 1u, T0));
+    assert(!gas_set_buzzer(&m, 256u, T0));
+    assert(!gas_set_buzzer(&m, 0xffffu, T0));
     assert(m.config.buzzer == GAS_BUZZER_OFF);
 
     /* 面板上显示的名字就是串口回显的名字，两边共用一份拼写。 */
@@ -316,19 +323,19 @@ static void test_buzzer_set(void)
     /* 蜂鸣器时长不参与限值判断，所以调它不重启「低于危险阈值多久算恢复」那个
      * 窗口：重启只会让站在 SAFE_WAIT 里等 KEY5 的人白等三秒。阈值参与，调它
      * 就必须重启。 */
-    for (i = 0; i < 100u; ++i) gas_key(&m, GAS_KEY_DOWN, 63000);
-    for (t = 63100; t <= 66100; t += 100) sample(&m, t, 100, 100, 100);
+    for (i = 0; i < 100u; ++i) gas_key(&m, GAS_KEY_DOWN, T0);
+    for (t = (T0 + 100u); t <= (T0 + 3100u); t += 100) sample(&m, t, 100, 100, 100);
     assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
 
     m.dirty = false;
-    assert(gas_set_buzzer(&m, 30u, 66101));
+    assert(gas_set_buzzer(&m, 30u, (T0 + 3101u)));
     assert(m.dirty && m.reset_ready);
-    assert(gas_set_threshold(&m, GAS_MQ4, 2600u, 66101));
+    assert(gas_set_threshold(&m, GAS_MQ4, 2600u, (T0 + 3101u)));
     assert(!m.reset_ready);
     /* 窗口从改动那一刻重新开始计时，之后照常成立。 */
-    for (t = 66200; t <= 69200; t += 100) sample(&m, t, 100, 100, 100);
+    for (t = (T0 + 3200u); t <= (T0 + 6200u); t += 100) sample(&m, t, 100, 100, 100);
     assert(m.reset_ready);
-    gas_key(&m, GAS_KEY_CONFIRM, 69200);
+    gas_key(&m, GAS_KEY_CONFIRM, (T0 + 6200u));
     assert(gas_valve_open(&m));
 }
 

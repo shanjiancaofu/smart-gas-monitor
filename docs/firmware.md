@@ -14,4 +14,4 @@ Open `stm32f103/MDK-ARM/smart_gas_monitor.uvprojx` and build the `smart_gas_moni
 
 Use `cmake --preset arm-debug` or `cmake --preset arm-release`, then `cmake --build --preset arm-debug` or `cmake --build --preset arm-release`. Final `.elf`, `.hex`, and `.bin` files are written directly to the selected `build/arm-*` directory.
 
-MQ thresholds are raw 12-bit ADC counts, not calibrated ppm values. During the 60-second MQ warm-up the valve remains closed and gas threshold alarms are suppressed; ADC and sampling faults still enter `FAULT`.
+MQ thresholds are raw 12-bit ADC counts, not calibrated ppm values. During the MQ warm-up (`GAS_WARMUP_MS`, 3 s) the valve remains closed and gas threshold alarms are suppressed; ADC and sampling faults still enter `FAULT`.

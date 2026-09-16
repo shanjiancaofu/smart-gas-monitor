@@ -10,6 +10,10 @@
 #include <stdio.h>
 #include <string.h>
 
+/* 同 test_gas.c：用例里的绝对时刻从 run_to_normal() 最后一次采样算起，
+ * 必须落在采样超时窗口内，否则会被读成采样中断而不是状态变化。 */
+#define T0 (GAS_WARMUP_MS + GAS_SAFE_HOLD_MS)
+
 typedef struct { uint8_t data[8192]; } fake_t;
 
 static bool read_mem(void *ctx, uint16_t addr, uint8_t *data, size_t size)
@@ -73,25 +77,25 @@ static void test_queries(void)
     assert(!history_init(&h, &io));
     protocol_init(&p, &m, &h);
 
-    command(&p, "STATUS?", 63100, out, sizeof(out));
+    command(&p, "STATUS?", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "STATE=NORMAL VALVE=OPEN ALARMS=0|"
-                       "MQ4=500/2400 MQ6=500/2000 MQ7=500/2400") == 0);
+                       "MQ4=500/2400 MQ6=500/2400 MQ7=500/2400") == 0);
 
-    command(&p, "CONFIG?", 63100, out, sizeof(out));
-    assert(strcmp(out, "TH MQ4=2400 MQ6=2000 MQ7=2400 PERIOD=100 BUZZ=5S") == 0);
+    command(&p, "CONFIG?", (T0 + 100u), out, sizeof(out));
+    assert(strcmp(out, "TH MQ4=2400 MQ6=2400 MQ7=2400 PERIOD=100 BUZZ=5S") == 0);
 
 
-    command(&p, "HISTORY?", 63100, out, sizeof(out));
+    command(&p, "HISTORY?", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "HISTORY 0/" TEST_HISTORY_CAPACITY) == 0);
 
 
-    command(&p, "status?", 63100, out, sizeof(out));
+    command(&p, "status?", (T0 + 100u), out, sizeof(out));
     assert(strncmp(out, "STATE=NORMAL", 12) == 0);
 
 
-    command(&p, "   ", 63100, out, sizeof(out));
+    command(&p, "   ", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "") == 0);
-    command(&p, "", 63100, out, sizeof(out));
+    command(&p, "", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "") == 0);
 }
 
@@ -109,77 +113,77 @@ static void test_set(void)
     protocol_init(&p, &m, &h);
     assert(!m.dirty);
 
-    command(&p, "SET MQ4 2600", 63100, out, sizeof(out));
+    command(&p, "SET MQ4 2600", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK MQ4=2600") == 0);
     assert(m.config.alarm[GAS_MQ4] == 2600u);
 
     assert(m.dirty);
 
-    command(&p, "set mq6 900", 63100, out, sizeof(out));
+    command(&p, "set mq6 900", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK MQ6=900") == 0 && m.config.alarm[GAS_MQ6] == 900u);
 
-    command(&p, "SET PERIOD 1000", 63100, out, sizeof(out));
+    command(&p, "SET PERIOD 1000", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK PERIOD=1000") == 0 && m.config.sample_period_ms == 1000u);
 
 
-    command(&p, "SET MQ4 100", 63100, out, sizeof(out));
+    command(&p, "SET MQ4 100", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.alarm[GAS_MQ4] == 2600u);
-    command(&p, "SET MQ4 9999", 63100, out, sizeof(out));
+    command(&p, "SET MQ4 9999", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0);
 
-    command(&p, "SET PERIOD 255", 63100, out, sizeof(out));
+    command(&p, "SET PERIOD 255", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.sample_period_ms == 1000u);
-    command(&p, "SET PERIOD 50", 63100, out, sizeof(out));
+    command(&p, "SET PERIOD 50", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.sample_period_ms == 1000u);
 
-    command(&p, "SET PERIOD 250", 63100, out, sizeof(out));
+    command(&p, "SET PERIOD 250", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK PERIOD=250") == 0 && m.config.sample_period_ms == 250u);
 
 
-    command(&p, "SET BUZZER 30", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER 30", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=30S") == 0 && m.config.buzzer == 30u);
     assert(m.dirty);
-    command(&p, "SET BUZZER ALWAYS", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER ALWAYS", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=ALWAYS") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
-    command(&p, "SET BUZZER OFF", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER OFF", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=OFF") == 0 && m.config.buzzer == GAS_BUZZER_OFF);
 
-    command(&p, "SET BUZZER always", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER always", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=ALWAYS") == 0);
-    command(&p, "SET BUZZER 5S", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER 5S", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=5S") == 0 && m.config.buzzer == 5u);
 
-    command(&p, "SET BUZZER 0", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER 0", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=OFF") == 0 && m.config.buzzer == GAS_BUZZER_OFF);
 
 
-    command(&p, "SET BUZZER 60", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER 60", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=60S") == 0 && m.config.buzzer == 60u);
-    command(&p, "SET BUZZER 61", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER 61", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=ALWAYS") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
-    command(&p, "SET BUZZER 62", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER 62", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
 
-    command(&p, "SET BUZZER 256", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER 256", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
 
-    command(&p, "SET BUZZER S", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER S", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR VALUE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
 
-    command(&p, "SET MQ9 1000", 63100, out, sizeof(out));
+    command(&p, "SET MQ9 1000", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR NAME") == 0);
-    command(&p, "SET MQ4 abc", 63100, out, sizeof(out));
+    command(&p, "SET MQ4 abc", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR VALUE") == 0);
-    command(&p, "SET MQ4", 63100, out, sizeof(out));
+    command(&p, "SET MQ4", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR UNKNOWN") == 0);
 
-    command(&p, "SET BUZZZER 5", 63100, out, sizeof(out));
+    command(&p, "SET BUZZZER 5", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR NAME") == 0);
-    command(&p, "SET BUZZER", 63100, out, sizeof(out));
+    command(&p, "SET BUZZER", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR UNKNOWN") == 0);
-    command(&p, "SET MQ4 2500 junk", 63100, out, sizeof(out));
+    command(&p, "SET MQ4 2500 junk", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR ARGS") == 0 && m.config.alarm[GAS_MQ4] == 2600u);
-    command(&p, "NONSENSE", 63100, out, sizeof(out));
+    command(&p, "NONSENSE", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR UNKNOWN") == 0);
 }
 
@@ -197,27 +201,27 @@ static void test_valve(void)
     assert(!history_init(&h, &io));
     protocol_init(&p, &m, &h);
 
-    command(&p, "VALVE CLOSE", 63100, out, sizeof(out));
+    command(&p, "VALVE CLOSE", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK VALVE=CLOSED") == 0);
     assert(!gas_valve_open(&m));
     assert(m.config.lockout && m.dirty);
     m.dirty = false;
 
 
-    command(&p, "VALVE OPEN", 63100, out, sizeof(out));
+    command(&p, "VALVE OPEN", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR ONLY CLOSE") == 0);
     assert(!gas_valve_open(&m));
-    command(&p, "VALVE close", 63100, out, sizeof(out));
+    command(&p, "VALVE close", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK VALVE=CLOSED") == 0);
     assert(!gas_valve_open(&m));
     assert(!m.dirty);
 
 
-    for (t = 63200; t <= 66300; t += 100) sample(&m, t, 500, 500, 500);
+    for (t = (T0 + 200u); t <= (T0 + 3300u); t += 100) sample(&m, t, 500, 500, 500);
     assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
-    command(&p, "VALVE OPEN", 66300, out, sizeof(out));
+    command(&p, "VALVE OPEN", (T0 + 3300u), out, sizeof(out));
     assert(strcmp(out, "ERR ONLY CLOSE") == 0 && !gas_valve_open(&m));
-    gas_key(&m, GAS_KEY_CONFIRM, 66300);
+    gas_key(&m, GAS_KEY_CONFIRM, (T0 + 3300u));
     assert(gas_valve_open(&m));
 }
 
@@ -244,7 +248,7 @@ static void test_history(void)
         assert(history_add(&h, &entry));
     }
     protocol_init(&p, &m, &h);
-    command(&p, "HISTORY?", 63100, out, sizeof(out));
+    command(&p, "HISTORY?", (T0 + 100u), out, sizeof(out));
 
     assert(strcmp(out,
         "HISTORY 3/" TEST_HISTORY_CAPACITY "|"
@@ -267,8 +271,8 @@ static void test_alarm_notice(void)
     protocol_init(&p, &m, &h);
     assert(!protocol_busy(&p));
 
-    sample(&m, 63100, m.config.alarm[GAS_MQ4], 500, 500);
-    sample(&m, 63200, (uint16_t)(m.config.alarm[GAS_MQ4] + 10u), 500, 500);
+    sample(&m, (T0 + 100u), m.config.alarm[GAS_MQ4], 500, 500);
+    sample(&m, (T0 + 200u), (uint16_t)(m.config.alarm[GAS_MQ4] + 10u), 500, 500);
     assert(m.state == GAS_ALARM);
     protocol_alarm(&p);
     assert(protocol_busy(&p));
@@ -295,9 +299,9 @@ static void test_long_line(void)
     protocol_init(&p, &m, &h);
     memset(line, 'X', sizeof(line) - 1u);
     line[sizeof(line) - 1u] = '\0';
-    command(&p, line, 63100, out, sizeof(out));
+    command(&p, line, (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR LONG") == 0);
-    command(&p, "STATUS?", 63100, out, sizeof(out));
+    command(&p, "STATUS?", (T0 + 100u), out, sizeof(out));
     assert(strncmp(out, "STATE=NORMAL", 12) == 0);
 }
 

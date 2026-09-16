@@ -4,9 +4,11 @@
 
 void config_defaults(gas_config_t *c)
 {
-    /* 课设演示用的 ADC counts，不是标定过的 ppm 阈值。 */
+    /* 课设演示用的 ADC counts，不是标定过的 ppm 阈值。三路先都取 2400：板子
+     * 上不接 MQ 时 ADC 引脚浮空，停在 3.3V 中点约 2048，阈值设在它之下会空
+     * 载报警。接上传感器后按实测标定值逐路调。 */
     c->alarm[0] = 2400;
-    c->alarm[1] = 2000;
+    c->alarm[1] = 2400;
     c->alarm[2] = 2400;
     c->sample_period_ms = 100;
     /* 与改动前那个固定的 5 秒一致，升级到 v5 不会让蜂鸣器行为跟着变。 */

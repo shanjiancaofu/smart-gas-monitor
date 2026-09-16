@@ -22,7 +22,10 @@
 #define GAS_SAFE_PERCENT 70u
 
 #define GAS_SAFE_HOLD_MS 3000u
-#define GAS_WARMUP_MS 60000u
+/* 预热期保持关阀且不判阈值。取 3 秒：真实 MQ 传感器要热机几分钟以上才稳定，
+ * 那个时长对课设演示没有意义。它和上一条的 GAS_SAFE_HOLD_MS 数值相同但含义
+ * 无关——一个是开机等待，一个是恢复判定要求的连续安全时长。 */
+#define GAS_WARMUP_MS 3000u
 #define GAS_SAVE_DELAY_MS 2000u
 #define GAS_SAMPLE_TIMEOUT_PERIODS 3u
 

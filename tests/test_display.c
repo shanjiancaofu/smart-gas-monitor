@@ -47,9 +47,9 @@ int main(void)
     display_key(&display, &gas, &history, GAS_KEY_SELECT, 102);
     assert(gas.item == GAS_ITEM_MQ6);
     display_key(&display, &gas, &history, GAS_KEY_UP, 103);
-    assert(gas.config.alarm[GAS_MQ6] == 2050);
+    assert(gas.config.alarm[GAS_MQ6] == 2450);
     display_key(&display, &gas, &history, GAS_KEY_DOWN, 104);
-    assert(gas.config.alarm[GAS_MQ6] == 2000);
+    assert(gas.config.alarm[GAS_MQ6] == 2400);
 
     display_key(&display, &gas, &history, GAS_KEY_PAGE, 105);
     assert(display.page == DISPLAY_HISTORY);
