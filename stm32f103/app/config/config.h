@@ -62,8 +62,15 @@ typedef struct {
     config_write_fn write;
 } config_io_t;
 
+typedef enum {
+    CONFIG_LOAD_OK = 0,
+    CONFIG_LOAD_EMPTY,
+    CONFIG_LOAD_IO_ERROR
+} config_load_status_t;
+
 /* 0x00 鍜?0x10 澶勭殑涓や唤 16 瀛楄妭鍓湰锛涘彇鏈€鏂颁笖鏈夋晥鐨勯偅浠姐€?*/
 bool config_load(const config_io_t *io, gas_config_t *config);
+config_load_status_t config_load_status(const config_io_t *io, gas_config_t *config);
 bool config_save(const config_io_t *io, const gas_config_t *config);
 void config_defaults(gas_config_t *config);
 bool config_valid(const gas_config_t *config);

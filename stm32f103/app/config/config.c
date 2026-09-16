@@ -130,14 +130,22 @@ static bool read_slots(const config_io_t *io, uint8_t b[2][CONFIG_SLOT_SIZE], bo
 }
 bool config_load(const config_io_t *io, gas_config_t *c)
 {
+    return config_load_status(io, c) == CONFIG_LOAD_OK;
+}
+
+config_load_status_t config_load_status(const config_io_t *io, gas_config_t *c)
+{
     uint8_t b[2][CONFIG_SLOT_SIZE];
     bool valid[2];
     int slot;
     if (!read_slots(io, b, valid)) {
-        return false;
+        return CONFIG_LOAD_IO_ERROR;
     }
     slot = latest(b, valid);
-    return slot >= 0 && decode(b[slot], c);
+    if (slot < 0) {
+        return CONFIG_LOAD_EMPTY;
+    }
+    return decode(b[slot], c) ? CONFIG_LOAD_OK : CONFIG_LOAD_EMPTY;
 }
 bool config_save(const config_io_t *io, const gas_config_t *c)
 {

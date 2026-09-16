@@ -121,8 +121,9 @@ bool app_init(void)
     app->store.read = bsp_eeprom_read;
     app->store.write = bsp_eeprom_write;
     config_defaults(&config);
-    app->storage_ok = config_load(&app->store, &config);
-    if (!app->storage_ok) {
+    config_load_status_t load_status = config_load_status(&app->store, &config);
+    app->storage_ok = load_status == CONFIG_LOAD_OK;
+    if (load_status == CONFIG_LOAD_EMPTY) {
         /* A blank EEPROM is a first boot, not a hardware failure. Persist defaults. */
         app->storage_ok = config_save(&app->store, &config);
     }
