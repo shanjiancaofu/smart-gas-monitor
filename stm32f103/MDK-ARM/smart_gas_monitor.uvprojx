@@ -620,6 +620,11 @@
               <FilePath>../bsp/bsp_relay.c</FilePath>
             </File>
             <File>
+              <FileName>bsp_servo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../bsp/bsp_servo.c</FilePath>
+            </File>
+            <File>
               <FileName>bsp_uart.c</FileName>
               <FileType>1</FileType>
               <FilePath>../bsp/bsp_uart.c</FilePath>

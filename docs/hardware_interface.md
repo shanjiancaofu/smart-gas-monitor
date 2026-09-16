@@ -1,16 +1,17 @@
 # 硬件接口
 
-引脚以 `stm32f103/smart_gas_monitor.ioc` 为准。
+以下为最终硬件职责。TIM4 舵机配置已在固件中实现，`.ioc` 尚待同步。
 
 | 引脚 | 标签 | 连接 | 说明 |
 | --- | --- | --- | --- |
 | PA0 | MQ4_AO | MQ-4 | ADC1_IN0，10k/18k 分压 |
 | PA1 | MQ6_AO | MQ-6 | ADC1_IN1，10k/18k 分压 |
 | PA4 | MQ7_AO | MQ-7 | ADC1_IN4，10k/18k 分压 |
-| PA8 | RELAY | 继电器 | 高电平开阀，建议 10k 下拉 |
+| PA8 | RELAY | 风扇继电器 | HIGH 触发：高电平风扇开，低电平风扇关；建议 10k 下拉 |
+| PB8 | TIM4_CH3 | 舵机燃气阀门 | 50 Hz PWM，暂定 1000 us 关闭、2000 us 打开，实物校准 |
 | PA5 | VALVE_LED | 阀门指示灯 | 软件开阀指示 |
 | PA6 | LED_RED | 红灯 | ALARM/FAULT |
-| PA7 | BUZZER | 蜂鸣器 | 报警节奏输出 |
+| PA7 | BUZZER | 蜂鸣器 | 低电平触发，报警节奏输出 |
 | PB0 | LED_GREEN | 绿灯 | NORMAL |
 | PB1 | LED_YELLOW | 黄灯 | WARNING/SAFE_WAIT |
 | PB12 | KEY1 | 页面切换 | EXTI 下降沿 |
@@ -23,6 +24,25 @@
 | PA2/PA3 | USART2 | HC-05 | 9600 baud |
 | PA9/PA10 | USART1 | USB-TTL | 115200 baud |
 | PA13/PA14 | SWD | ST-Link | SWDIO/SWCLK |
+
+## 状态与执行器映射
+
+| 状态 | 风扇（继电器 PA8） | 舵机阀门 PB8 | 蜂鸣器 / 灯 |
+| --- | --- | --- | --- |
+| WARMUP | OFF | 关闭 | 等待 |
+| NORMAL | OFF | 打开 | 绿灯 |
+| WARNING | **OFF** | 打开 | 黄灯 |
+| ALARM | **ON** | **关闭** | 红灯 + 蜂鸣器 |
+| FAULT | ON | 关闭 | 红灯 + 蜂鸣器 |
+| SAFE_WAIT | ON | 关闭 | 黄灯，等待 KEY4 |
+| KEY4 成功恢复 NORMAL | OFF | 打开 | 绿灯 |
+
+- PA5 表示舵机阀门的命令状态：OPEN 亮、CLOSE 灭，不是阀位传感器反馈。PA8 继电器只负责风扇。
+- 普通上电先风扇 OFF、阀门关闭、蜂鸣器 OFF、阀门灯 OFF。若 EEPROM 恢复 `lockout=1`，预热期间也保持风扇 ON、阀门关闭，不能按普通 WARMUP 关闭排风。
+- 环境安全保持 3 秒后，KEY4 才能成功解除锁存；清除的 `lockout` 写回 EEPROM。
+- 蜂鸣器遵循现有静音、限时、持续报警设置；表中表示报警用途，不代表所有设置下持续发声。
+- TIM2 保持原 10 ms 中断；TIM4 使用 1 MHz 计数、20 ms 周期（50 Hz），启动 PWM 前装载 CLOSE 的 CCR3。
+- 本表为目标行为；继电器、舵机、报警闭环及 EEPROM 掉电恢复仍待实物验收。
 
 ## 供电
 

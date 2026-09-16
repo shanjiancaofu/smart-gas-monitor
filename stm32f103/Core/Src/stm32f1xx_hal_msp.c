@@ -56,6 +56,13 @@
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
+
+void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
+{
+  if (tim_pwmHandle->Instance == TIM4) {
+    __HAL_RCC_TIM4_CLK_ENABLE();
+  }
+}
 /**
   * Initializes the Global MSP.
   */

@@ -98,10 +98,11 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_TIM2_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-  /* MX_GPIO_Init() 里那句 HAL_GPIO_WritePin 把 BUZZER_Pin 也拉低了，那是按高
+  /* MX_GPIO_Init() 里那�?HAL_GPIO_WritePin �?BUZZER_Pin 也拉低了，那是按�?
    * 电平触发生成的。本项目的蜂鸣器低电平触发，所以上电到 alarm_init() 之间它会
-   * 一直响；这里先摆回空闲电平，别等 app_init()。 */
+   * 一直响；这里先摆回空闲电平，别�?app_init()�?*/
   bsp_buzzer_set(false);
   if (!app_init())
   {
@@ -203,3 +204,5 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
+

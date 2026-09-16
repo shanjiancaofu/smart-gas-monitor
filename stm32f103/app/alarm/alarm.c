@@ -2,6 +2,7 @@
 #include "bsp_buzzer.h"
 #include "bsp_led.h"
 #include "bsp_relay.h"
+#include "bsp_servo.h"
 
 #define BEEP_ON_TICKS 18u
 #define BEEP_STEP_TICKS 30u
@@ -9,9 +10,10 @@
 
 void alarm_force_safe(void)
 {
-    bsp_relay_close();
+    bsp_fan_set(false);
     bsp_buzzer_set(false);
     bsp_led_valve(false);
+    bsp_servo_set(false);
 }
 
 void alarm_init(alarm_t *alarm)
@@ -36,11 +38,11 @@ void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick)
     alarm->alarm_mask = active ? gas->alarm_mask : 0u;
 
     /* 先落实关阀，再更新提示输出。 */
-    if (open) {
-        bsp_relay_open();
-    } else {
-        bsp_relay_close();
-    }
+    /* A closed valve during normal warmup does not require exhaust.
+       A persisted lockout keeps exhaust running even during warmup. */
+    bsp_fan_set(active || gas->state == GAS_SAFE_WAIT || gas->latched ||
+                gas->config.lockout);
+    bsp_servo_set(open);
     bool buzzer = false;
     if (active && gas->state == GAS_FAULT) {
         bsp_buzzer_set(duration != GAS_BUZZER_OFF);

@@ -1,4 +1,4 @@
-ï»¿#include "app.h"
+#include "app.h"
 #include <string.h>
 
 #include "adc.h"
@@ -7,6 +7,7 @@
 #include "usart.h"
 #include "alarm/alarm.h"
 #include "bsp_adc.h"
+#include "bsp_servo.h"
 #include "bsp_eeprom.h"
 #include "bsp_key.h"
 #include "bsp_uart.h"
@@ -108,14 +109,15 @@ bool app_init(void)
     uint32_t now;
     memset(app, 0, sizeof(*app));
 
+    bsp_servo_init();
     alarm_init(&app->alarm);
 
     if (HAL_TIM_Base_Start_IT(tick) != HAL_OK) {
         return false;
     }
     app->last_tick = app_ticks;
-    /* é¢æ¿å…ˆç‚¹èµ·æ¥ã€‚åŽé¢è¯» EEPROM è¦èµ°ä¸€ä¸²å¯èƒ½è¶…æ—¶çš„ I2Cï¼Œå±å¹•ä¸è¯¥è·Ÿç€
-     * é»‘ç€ç­‰â€”â€”EEPROM æ²¡æŽ¥æ—¶é‚£æ®µèƒ½åˆ°åå‡ ç§’ã€‚ */
+    /* Ãæ°åÏÈµãÆðÀ´¡£ºóÃæ¶Á EEPROM Òª×ßÒ»´®¿ÉÄÜ³¬Ê±µÄ I2C£¬ÆÁÄ»²»¸Ã¸ú×Å
+     * ºÚ×ÅµÈ¡ª¡ªEEPROM Ã»½ÓÊ±ÄÇ¶ÎÄÜµ½Ê®¼¸Ãë¡£ */
     (void)bsp_oled_init(&app->oled, oled);
     display_init(&app->display, &app->oled);
     bsp_key_init(&app->keys);
@@ -235,4 +237,6 @@ void app_update(void)
     display_update(&app->display, &app->monitor, &app->history, app->storage_ok, now);
     config_update(app, now);
 }
+
+
 

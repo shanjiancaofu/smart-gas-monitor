@@ -50,3 +50,6 @@ void MX_TIM2_Init(void);
 
 #endif /* __TIM_H__ */
 
+
+extern TIM_HandleTypeDef htim4;
+void MX_TIM4_Init(void);

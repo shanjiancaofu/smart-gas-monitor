@@ -25,6 +25,8 @@
 /* USER CODE END 0 */
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim4;
+void MX_TIM4_Init(void){ TIM_OC_InitTypeDef o={0}; htim4.Instance=TIM4; htim4.Init.Prescaler=71; htim4.Init.Period=19999; htim4.Init.CounterMode=TIM_COUNTERMODE_UP; htim4.Init.ClockDivision=TIM_CLOCKDIVISION_DIV1; HAL_TIM_PWM_Init(&htim4); o.OCMode=TIM_OCMODE_PWM1; o.Pulse=1000; o.OCPolarity=TIM_OCPOLARITY_HIGH; HAL_TIM_PWM_ConfigChannel(&htim4,&o,TIM_CHANNEL_3); }
 
 /* TIM2 init function */
 void MX_TIM2_Init(void)
@@ -109,4 +111,6 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
+
+
 

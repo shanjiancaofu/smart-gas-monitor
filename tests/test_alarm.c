@@ -5,9 +5,9 @@
 #include <assert.h>
 #include <stdio.h>
 
-static bool relay, buzzer, green_led, yellow_led, red_led, valve_led;
-void bsp_relay_open(void) { relay = true; }
-void bsp_relay_close(void) { relay = false; }
+static bool relay, servo_open, buzzer, green_led, yellow_led, red_led, valve_led;
+void bsp_fan_set(bool on) { relay = on; }
+void bsp_servo_set(bool open) { servo_open = open; }
 void bsp_buzzer_set(bool on) { buzzer = on; }
 void bsp_led_valve(bool open) { valve_led = open; }
 void bsp_led_set(bool green, bool yellow, bool red, bool valve)
@@ -27,34 +27,42 @@ int main(void)
     gas_init(&gas, NULL, 0);
     alarm_init(&alarm);
     assert(!relay && !buzzer && !valve_led);
+    alarm_update(&alarm, &gas, 0);
+    assert(!relay && !servo_open && !valve_led && !buzzer);
+    gas.config.lockout = true;
+    gas.latched = true;
+    alarm_update(&alarm, &gas, 0);
+    assert(relay && !servo_open && !valve_led);
+    gas.config.lockout = false;
+    gas.latched = false;
     gas.state = GAS_NORMAL;
     alarm_update(&alarm, &gas, 0);
-    assert(relay && green_led && valve_led && !buzzer);
+    assert(!relay && servo_open && green_led && valve_led && !buzzer);
     gas.state = GAS_WARNING;
     alarm_update(&alarm, &gas, 1);
-    assert(relay && yellow_led && !red_led);
+    assert(!relay && servo_open && yellow_led && !red_led);
 
     gas.state = GAS_ALARM;
     gas.latched = true;
     gas.alarm_mask = 1u;
     alarm_update(&alarm, &gas, start);
-    assert(!relay && !valve_led && red_led && buzzer);
+    assert(relay && !servo_open && !valve_led && red_led && buzzer);
     alarm_update(&alarm, &gas, start + 20u);
     assert(!buzzer);
     gas.alarm_mask = 3u;
     alarm_update(&alarm, &gas, start + 40u);
     assert(buzzer);
     alarm_update(&alarm, &gas, start + 500u);
-    assert(!buzzer && red_led && !relay);
+    assert(!buzzer && red_led && relay);
     alarm_update(&alarm, &gas, start + 1000u);
     assert(!buzzer);
 
     gas.state = GAS_SAFE_WAIT;
     alarm_update(&alarm, &gas, 1000);
-    assert(!relay && !buzzer && yellow_led);
+    assert(relay && !servo_open && !buzzer && yellow_led);
     gas.state = GAS_FAULT;
     alarm_update(&alarm, &gas, 1001);
-    assert(buzzer && !relay && red_led);
+    assert(buzzer && relay && !servo_open && red_led);
     gas.config.buzzer = GAS_BUZZER_OFF;
     alarm_update(&alarm, &gas, 1002);
     assert(!buzzer);
