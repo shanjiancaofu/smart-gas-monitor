@@ -88,3 +88,7 @@ stm32f103/MDK-ARM/smart_gas_monitor/
 
 # OpenOCD / flashing logs
 *.log
+
+# Proteus 自动生成的备份和每用户工作区状态
+hardware/proteus/Project Backups/
+*.pdsprj.*.workspace
