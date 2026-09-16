@@ -14,11 +14,13 @@ static const soft_bus_t soft_buses[2] = {
     {GPIOB, GPIO_PIN_10, GPIO_PIN_11},   /* &hi2c2：存储 */
 };
 
-/* 半个时钟周期的延时。72 MHz 下 i2c_delay() 一次调用约 432 个周期 = 6 us，
- * 于是 SCL 一个完整周期约 12 us，总线速率约 83 kHz。count 是循环次数，靠实测
- * 标定——软件延时本来就是近似值，这里只需要满足 I2C 的时序下限：Proteus 的
- * SSD1306 和存储模型都要求 STOP 的建立时间 tSU;STO >= 4.7 us。 */
-#define I2C_DELAY_LOOPS 80u
+/* 半个时钟周期的延时。140 次循环在 72 MHz 下约 5.4 us，于是 SCL 一个完整周期
+ * 约 11 us、总线速率约 93 kHz。
+ *
+ * 这个数是从 Proteus 的实测反推的：80 次循环时它报 STOP 建立时间只有 3.11 us，
+ * 低于模型要求的 4.7 us。它是软件延时的近似值，改优化等级会影响实际长度，
+ * 判断标准看仿真日志里的 setup time。 */
+#define I2C_DELAY_LOOPS 140u
 
 static void i2c_delay(void)
 {
@@ -32,7 +34,6 @@ static const soft_bus_t *bus_of(I2C_HandleTypeDef *handle)
     return handle == &hi2c2 ? &soft_buses[1] : &soft_buses[0];
 }
 
-/* 开漏输出：写 1 是释放这条线，由上拉拉高，所以两条线不会互相顶。 */
 static void scl_set(const soft_bus_t *bus, bool high)
 {
     HAL_GPIO_WritePin(bus->port, bus->scl, high ? GPIO_PIN_SET : GPIO_PIN_RESET);
@@ -43,10 +44,37 @@ static void sda_set(const soft_bus_t *bus, bool high)
     HAL_GPIO_WritePin(bus->port, bus->sda, high ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
-/* 开漏引脚的输入缓冲一直有效，所以读得到真实线电平。 */
+/* 开漏引脚的输入缓冲一直有效，所以输出模式下读得到真实线电平。 */
 static bool sda_get(const soft_bus_t *bus)
 {
     return HAL_GPIO_ReadPin(bus->port, bus->sda) == GPIO_PIN_SET;
+}
+
+/* 把 SDA 真正放成高阻输入。
+ *
+ * 这一步是必须的，不能只写 SET 了事：开漏输出即使写 1，引脚仍被推挽级的输出
+ * 缓冲监视着，从机拉低时 Proteus 会判定成两个驱动源争用，报
+ * "Logic contention on net"。发送阶段才是输出，等应答和读数据时都要让开。 */
+static void sda_input(const soft_bus_t *bus)
+{
+    GPIO_InitTypeDef gpio = {0};
+
+    gpio.Pin = bus->sda;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(bus->port, &gpio);
+}
+
+/* 主机要驱动 SDA 时切回开漏输出。 */
+static void sda_output(const soft_bus_t *bus)
+{
+    GPIO_InitTypeDef gpio = {0};
+
+    gpio.Pin = bus->sda;
+    gpio.Mode = GPIO_MODE_OUTPUT_OD;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(bus->port, &gpio);
 }
 
 void bsp_i2c_init(void)
@@ -69,6 +97,7 @@ void bsp_i2c_init(void)
 
 static void i2c_start(const soft_bus_t *bus)
 {
+    sda_output(bus);
     sda_set(bus, true);
     i2c_delay();
     scl_set(bus, true);
@@ -81,12 +110,13 @@ static void i2c_start(const soft_bus_t *bus)
 
 static void i2c_stop(const soft_bus_t *bus)
 {
+    sda_output(bus);
     sda_set(bus, false);
     i2c_delay();
     scl_set(bus, true);
     i2c_delay();
-    /* SCL 已经是高，再把 SDA 放开就是停止条件。先抬高 SCL 再等一个周期才动
-     * SDA，这段保持时间要盖过模型的 tSU;STO 下限。 */
+    /* SCL 已经是高，再把 SDA 放开就是停止条件。先抬高 SCL、等满一个半周期再动
+     * SDA，这段就是 tSU;STO。 */
     sda_set(bus, true);
     i2c_delay();
 }
@@ -97,6 +127,7 @@ static bool i2c_write_byte(const soft_bus_t *bus, uint8_t byte)
     unsigned i;
     bool ack;
 
+    sda_output(bus);
     for (i = 0; i < 8u; ++i) {
         sda_set(bus, (byte & 0x80u) != 0u);
         i2c_delay();
@@ -106,14 +137,15 @@ static bool i2c_write_byte(const soft_bus_t *bus, uint8_t byte)
         i2c_delay();
         byte = (uint8_t)(byte << 1);
     }
-    /* 释放 SDA 把第九个时钟让给从机，低电平就是应答。 */
-    sda_set(bus, true);
+    /* 第九个时钟让给从机：先把 SDA 放成高阻，再抬高 SCL 读应答。 */
+    sda_input(bus);
     i2c_delay();
     scl_set(bus, true);
     i2c_delay();
-    ack = !sda_get(bus);
+    ack = !sda_get(bus);   /* 低电平 = 应答 */
     scl_set(bus, false);
     i2c_delay();
+    sda_output(bus);
     return ack;
 }
 
@@ -123,7 +155,7 @@ static uint8_t i2c_read_byte(const soft_bus_t *bus, bool ack)
     uint8_t byte = 0u;
     unsigned i;
 
-    sda_set(bus, true);    /* 主机释放 SDA，交给从机驱动 */
+    sda_input(bus);        /* 整段读取期间 SDA 都归从机驱动 */
     i2c_delay();
     for (i = 0; i < 8u; ++i) {
         scl_set(bus, true);
@@ -132,13 +164,13 @@ static uint8_t i2c_read_byte(const soft_bus_t *bus, bool ack)
         scl_set(bus, false);
         i2c_delay();
     }
+    sda_output(bus);       /* 这一位由主机驱动 */
     sda_set(bus, !ack);
     i2c_delay();
     scl_set(bus, true);
     i2c_delay();
     scl_set(bus, false);
     i2c_delay();
-    sda_set(bus, true);
     return byte;
 }
 

@@ -309,10 +309,17 @@ static void draw_char(bsp_oled_t *oled, unsigned x, unsigned page, char ch, bool
 
     for (i = 0; i < width; ++i) {
         for (p = 0; p < pages; ++p) {
-            oled->buffer[(page + p) * SSD1306_WIDTH + x + i] = glyph[p * width + i];
+            unsigned index = (page + p) * SSD1306_WIDTH + x + i;
+            uint8_t value = glyph[p * width + i];
+
+            /* 只在内容真的变了时才标脏。整屏重绘时绝大多数字符和上一帧一模一样，
+             * 无条件标脏会让主页面每 200 ms 就把整屏推出去一次。 */
+            if (oled->buffer[index] != value) {
+                oled->buffer[index] = value;
+                oled->dirty |= (uint8_t)(1u << (unsigned)(page + p));
+            }
         }
     }
-    oled->dirty |= (uint8_t)(((1u << pages) - 1u) << page);
 }
 
 bool bsp_oled_text(bsp_oled_t *oled, unsigned x, unsigned page, const char *text, bool large)
