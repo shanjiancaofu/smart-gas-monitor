@@ -1,4 +1,4 @@
-#include "app.h"
+﻿#include "app.h"
 #include <string.h>
 
 #include "adc.h"
@@ -15,6 +15,7 @@
 
 #define APP_TICK_MS GAS_TICK_MS
 
+#if !defined(__ARMCC_VERSION)
 _Static_assert((unsigned)KEY_PAGE + 1u == (unsigned)GAS_KEY_PAGE &&
                    (unsigned)KEY_UP + 1u == (unsigned)GAS_KEY_UP &&
                    (unsigned)KEY_DOWN + 1u == (unsigned)GAS_KEY_DOWN &&
@@ -22,6 +23,7 @@ _Static_assert((unsigned)KEY_PAGE + 1u == (unsigned)GAS_KEY_PAGE &&
                    (unsigned)KEY_SELECT + 1u == (unsigned)GAS_KEY_SELECT &&
                    (unsigned)KEY_EVENT_COUNT == (unsigned)GAS_KEY_SELECT,
                "BSP and application key roles must stay aligned");
+#endif
 
 typedef struct {
     gas_t monitor;
@@ -167,7 +169,7 @@ static void keys_update(app_t *app, uint32_t now)
     uint8_t keys = bsp_key_poll(&app->keys, now);
     unsigned i;
 
-    /* KEY5 短按仍然切换设置项；持续按住 1.5 秒进入答辩测试模式。 */
+    /* KEY5 鐭寜浠嶇劧鍒囨崲璁剧疆椤癸紱鎸佺画鎸変綇 1.5 绉掕繘鍏ョ瓟杈╂祴璇曟ā寮忋€?*/
     if (bsp_key_is_down(&app->keys, KEY_COUNT - 1u)) {
         if (!app->key5_held) {
             app->key5_held = true;
@@ -241,3 +243,4 @@ void app_update(void)
     display_update(&app->display, &app->monitor, &app->history, app->storage_ok, now);
     config_update(app, now);
 }
+

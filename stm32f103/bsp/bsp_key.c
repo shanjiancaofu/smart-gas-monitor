@@ -1,14 +1,16 @@
-#include "bsp_key.h"
+﻿#include "bsp_key.h"
 #include "main.h"
 #include "stm32f1xx_hal.h"
 #include <string.h>
 #include <stdbool.h>
 
+#if !defined(__ARMCC_VERSION)
 _Static_assert(KEY1_Pin != KEY2_Pin && KEY1_Pin != KEY3_Pin && KEY1_Pin != KEY4_Pin &&
                    KEY1_Pin != KEY5_Pin && KEY2_Pin != KEY3_Pin && KEY2_Pin != KEY4_Pin &&
                    KEY2_Pin != KEY5_Pin && KEY3_Pin != KEY4_Pin && KEY3_Pin != KEY5_Pin &&
                    KEY4_Pin != KEY5_Pin,
                "every key needs its own pin: EXTI lines are shared by pin number");
+#endif
 
 typedef struct {
     GPIO_TypeDef *port;
@@ -93,3 +95,4 @@ bool bsp_key_is_down(const bsp_key_t *keys, unsigned key)
 {
     return key < KEY_COUNT && (keys->stable & (1u << key)) != 0u;
 }
+
