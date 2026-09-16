@@ -252,7 +252,7 @@ bool bsp_oled_init(bsp_oled_t *oled, I2C_HandleTypeDef *i2c)
         return false;
     }
     bsp_oled_clear(oled);
-    bsp_oled_flush(oled);
+    bsp_oled_flush(oled, SSD1306_PAGES);
     oled->ready = true;
     return true;
 }
@@ -269,10 +269,10 @@ void bsp_oled_clear(bsp_oled_t *oled)
     oled->dirty = 0xFFu;
 }
 
-void bsp_oled_flush(bsp_oled_t *oled)
+void bsp_oled_flush(bsp_oled_t *oled, unsigned max_pages)
 {
-    unsigned page;
-    for (page = 0; page < SSD1306_PAGES; ++page) {
+    unsigned page, pushed = 0u;
+    for (page = 0; page < SSD1306_PAGES && pushed < max_pages; ++page) {
         uint8_t setup[3];
         if (!(oled->dirty & (1u << page))) {
             continue;
@@ -290,6 +290,7 @@ void bsp_oled_flush(bsp_oled_t *oled)
         }
         /* 只有这一页真的发出去了，才清掉标志位。 */
         oled->dirty &= (uint8_t) ~(1u << page);
+        ++pushed;
     }
 }
 

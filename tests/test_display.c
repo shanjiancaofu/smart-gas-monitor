@@ -8,7 +8,7 @@ static bool ready = true;
 
 bool bsp_oled_is_ready(const bsp_oled_t *oled) { (void)oled; return ready; }
 void bsp_oled_clear(bsp_oled_t *oled) { (void)oled; memset(rows, 0, sizeof(rows)); }
-void bsp_oled_flush(bsp_oled_t *oled) { (void)oled; }
+void bsp_oled_flush(bsp_oled_t *oled, unsigned max_pages) { (void)oled; (void)max_pages; }
 bool bsp_oled_text(bsp_oled_t *oled, unsigned x, unsigned page, const char *text, bool large)
 {
     (void)oled; (void)x; (void)large;
