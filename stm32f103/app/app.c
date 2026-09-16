@@ -114,6 +114,10 @@ bool app_init(void)
         return false;
     }
     app->last_tick = app_ticks;
+    /* 面板先点起来。后面读 EEPROM 要走一串可能超时的 I2C，屏幕不该跟着
+     * 黑着等——EEPROM 没接时那段能到十几秒。 */
+    (void)bsp_oled_init(&app->oled, oled);
+    display_init(&app->display, &app->oled);
     bsp_key_init(&app->keys);
     bsp_eeprom_init(&app->eeprom, eeprom);
     app->sensor_ready = bsp_adc_init(&app->sensor, adc);
@@ -132,8 +136,6 @@ bool app_init(void)
     now = HAL_GetTick();
     gas_init(&app->monitor, &config, now);
 
-    (void)bsp_oled_init(&app->oled, oled);
-    display_init(&app->display, &app->oled);
     protocol_init(&app->protocol_usb, &app->monitor, &app->history);
     protocol_init(&app->protocol_radio, &app->monitor, &app->history);
     bsp_uart_init(&app->link_usb, usb);

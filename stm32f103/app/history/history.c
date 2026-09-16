@@ -75,10 +75,61 @@ static bool read_slot(const history_t *h, unsigned slot, history_entry_t *out)
     return h->io->read(h->io->context, slot_offset(slot), raw, sizeof(raw)) && decode(raw, out);
 }
 
+/* 扫一遍槽位，挑出序号最新的那一条，用 *newest 带回它的槽号。
+ *
+ * full 为假时每槽只读开头的 2 字节 seq：启动路径上找「最新的一条」用不着
+ * 整条记录，2 字节比 16 字节便宜约三倍。代价是 seq 没有 CRC 保护，所以快
+ * 路径挑出来的槽位要由调用方整条读回来验一次；full 为真时每槽整条读并过
+ * CRC，挑出来的结果直接可信，但慢。
+ *
+ * 返回 false 表示一条有效记录都没有。器件中途不应答时同样立刻返回，不再
+ * 问后面的槽位——「读不到」和「这个槽位没东西」是两回事，EEPROM 不在时那
+ * 五百多次超时能把上电拖成十几秒。 */
+static bool scan_newest(const history_t *h, bool full, unsigned *newest, uint16_t *best_seq)
+{
+    bool found = false;
+    uint16_t best = 1u;
+    unsigned i;
+
+    *newest = 0u;
+    *best_seq = 1u;
+    for (i = 0; i < HISTORY_SLOTS; ++i) {
+        uint8_t raw[HISTORY_SLOT_SIZE];
+        history_entry_t entry;
+        uint16_t seq;
+        if (!h->io->read(h->io->context, slot_offset(i), raw, full ? sizeof(raw) : 2u)) {
+            return false;
+        }
+        if (full) {
+            if (!decode(raw, &entry)) {
+                continue;
+            }
+            seq = entry.seq;
+        } else {
+            seq = get16(raw);
+            if (seq == HISTORY_SEQ_NONE) {
+                continue;
+            }
+        }
+        /* 回绕后的序号按无符号距离比较，与配置槽位在两份副本中挑出较新
+         * 的那一份是同一套办法。 */
+        if (!found || (uint16_t)(seq - best) < 0x8000u) {
+            best = seq;
+            *newest = i;
+            found = true;
+        }
+    }
+    if (found) {
+        *best_seq = best;
+    }
+    return found;
+}
+
 bool history_init(history_t *h, const config_io_t *io)
 {
     unsigned newest = 0;
-    bool found = false;
+    history_entry_t entry;
+    bool found;
     unsigned i;
     memset(h, 0, sizeof(*h));
     h->io = io;
@@ -86,19 +137,11 @@ bool history_init(history_t *h, const config_io_t *io)
     if (io == NULL || io->read == NULL) {
         return false;
     }
-    for (i = 0; i < HISTORY_SLOTS; ++i) {
-        history_entry_t entry;
-        if (!read_slot(h, i, &entry)) {
-            continue;
-        }
-        /* 回绕后的序号按无符号距离比较，与配置槽位在两份副本中挑出较新
-         * 的那一份是同一套办法。 */
-        if (!found || (uint16_t)(entry.seq - h->next_seq) < 0x8000u) {
-            h->next_seq = entry.seq;
-            newest = i;
-            found = true;
-        }
-        ++h->count;
+    found = scan_newest(h, false, &newest, &h->next_seq);
+    if (found && !read_slot(h, newest, &entry)) {
+        /* 快路径挑中的槽位整条读回来过不了 CRC：多半是写一半掉电留下的，
+         * 真正的记录还在别处。退回整条扫，重挑一次。 */
+        found = scan_newest(h, true, &newest, &h->next_seq);
     }
     if (!found) {
         h->next_seq = 1u;
@@ -112,12 +155,13 @@ bool history_init(history_t *h, const config_io_t *io)
     /* 最新一条之后的那个槽位既是最旧的一条，也是下一个要写的槽位，
      * 无论记录是否已经回绕。 */
     h->next_slot = (uint16_t)((newest + 1u) % HISTORY_SLOTS);
-    /* Only expose the contiguous valid run ending at the newest record. */
+    /* 只暴露以最新那条结尾的那一段连续有效记录：中间的空洞会让「往回翻几
+     * 条」跨过一段不存在的内容。 */
     h->count = 0u;
     for (i = 0; i < HISTORY_SLOTS; ++i) {
         unsigned slot = (newest + HISTORY_SLOTS - i) % HISTORY_SLOTS;
-        history_entry_t entry;
-        if (!read_slot(h, slot, &entry)) {
+        history_entry_t scanned;
+        if (!read_slot(h, slot, &scanned)) {
             break;
         }
         ++h->count;

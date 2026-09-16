@@ -19,7 +19,7 @@
 | PB15 | KEY4 | 安全解除 | EXTI 下降沿 |
 | PB5 | KEY5 | 设置项切换 | 上拉轮询 |
 | PB8/PB9 | I2C1 remap | SSD1306 | 0x3C，400 kHz |
-| PB10/PB11 | I2C2 | AT24C64 | 0x50，100 kHz |
+| PB10/PB11 | I2C2 | AT24C64 | 0x50，400 kHz |
 | PA2/PA3 | USART2 | HC-05 | 9600 baud |
 | PA9/PA10 | USART1 | USB-TTL | 115200 baud |
 | PA13/PA14 | SWD | ST-Link | SWDIO/SWCLK |
