@@ -2,6 +2,16 @@
 #define ALARM_H
 #include "gas/gas.h"
 
+/* 蜂鸣节奏，单位是 GAS_TICK_MS(10 ms) 的节拍数：单滴 500 ms，相邻两滴的起点
+ * 相隔 700 ms（也就是滴与滴之间停 200 ms），一组响完停 500 ms。报警的通道越
+ * 多，一组里的滴声越多。
+ *
+ * 放在头文件里是为了让主机测试按同一组常量推导时刻——测试里写死数字的话，
+ * 每次调这几个档位都要回去改测试。 */
+#define BEEP_ON_TICKS 50u
+#define BEEP_STEP_TICKS 70u
+#define BEEP_GROUP_GAP_TICKS 50u
+
 typedef struct {
     bool active;
     uint32_t started_tick;

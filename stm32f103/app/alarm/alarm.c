@@ -4,10 +4,6 @@
 #include "bsp_relay.h"
 #include "bsp_servo.h"
 
-#define BEEP_ON_TICKS 18u
-#define BEEP_STEP_TICKS 30u
-#define BEEP_GROUP_GAP_TICKS 68u
-
 void alarm_force_safe(void)
 {
     bsp_fan_set(false);
@@ -62,7 +58,7 @@ void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick)
         if (count == 0) {
             count = 1;
         }
-        /* 每个“滴”响 100 ms，间隔 50 ms；报警传感器越多，一轮里的滴声越多。 */
+        /* 一组里有 count 滴，每滴的起点往后挪一个 BEEP_STEP_TICKS。 */
         phase = elapsed % (count * BEEP_STEP_TICKS + BEEP_GROUP_GAP_TICKS);
         for (unsigned i = 0; i < count; ++i) {
             uint32_t start = i * BEEP_STEP_TICKS;

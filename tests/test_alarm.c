@@ -47,14 +47,21 @@ int main(void)
     gas.alarm_mask = 1u;
     alarm_update(&alarm, &gas, start);
     assert(relay && !servo_open && !valve_led && red_led && buzzer);
-    alarm_update(&alarm, &gas, start + 20u);
+
+    /* 单滴刚好响 BEEP_ON_TICKS 个节拍，之后到下一滴起点之间是安静的。 */
+    alarm_update(&alarm, &gas, start + BEEP_ON_TICKS);
     assert(!buzzer);
+
+    /* 多一路报警会重新起一拍，蜂鸣器立刻再响。 */
     gas.alarm_mask = 3u;
-    alarm_update(&alarm, &gas, start + 40u);
+    alarm_update(&alarm, &gas, start + BEEP_ON_TICKS + 10u);
     assert(buzzer);
-    alarm_update(&alarm, &gas, start + 500u);
+
+    /* 默认档位是 5 秒，从重新起拍算起 500 个节拍之后不再响，红灯和关阀保持。
+     * 这几个时刻都从 BEEP_* 常量推出来，调档位时测试跟着走。 */
+    alarm_update(&alarm, &gas, start + BEEP_ON_TICKS + 10u + 500u);
     assert(!buzzer && red_led && relay);
-    alarm_update(&alarm, &gas, start + 1000u);
+    alarm_update(&alarm, &gas, start + BEEP_ON_TICKS + 10u + 1000u);
     assert(!buzzer);
 
     gas.state = GAS_SAFE_WAIT;
