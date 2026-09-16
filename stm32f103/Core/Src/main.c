@@ -98,12 +98,14 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_TIM2_Init();
-  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-  /* MX_GPIO_Init() 里那�?HAL_GPIO_WritePin �?BUZZER_Pin 也拉低了，那是按�?
+  /* MX_GPIO_Init() 里那句 HAL_GPIO_WritePin 把 BUZZER_Pin 也拉低了，那是按高
    * 电平触发生成的。本项目的蜂鸣器低电平触发，所以上电到 alarm_init() 之间它会
-   * 一直响；这里先摆回空闲电平，别�?app_init()�?*/
+   * 一直响；这里先摆回空闲电平，别等 app_init()。 */
   bsp_buzzer_set(false);
+  /* TIM4_CH3 驱动舵机阀门。它不在 .ioc 里，所以初始化调用也放在 USER CODE
+   * 段，理由见 tim.c：CubeMX 重新生成时不会把这一句删掉。 */
+  MX_TIM4_Init();
   if (!app_init())
   {
     Error_Handler();

@@ -116,8 +116,8 @@ bool app_init(void)
         return false;
     }
     app->last_tick = app_ticks;
-    /* Ãæ°åÏÈµãÆðÀ´¡£ºóÃæ¶Á EEPROM Òª×ßÒ»´®¿ÉÄÜ³¬Ê±µÄ I2C£¬ÆÁÄ»²»¸Ã¸ú×Å
-     * ºÚ×ÅµÈ¡ª¡ªEEPROM Ã»½ÓÊ±ÄÇ¶ÎÄÜµ½Ê®¼¸Ãë¡£ */
+    /* é¢æ¿å…ˆç‚¹èµ·æ¥ã€‚åŽé¢è¯» EEPROM è¦èµ°ä¸€ä¸²å¯èƒ½è¶…æ—¶çš„ I2Cï¼Œå±å¹•ä¸è¯¥è·Ÿç€
+     * é»‘ç€ç­‰â€”â€”EEPROM æ²¡æŽ¥æ—¶é‚£æ®µèƒ½åˆ°åå‡ ç§’ã€‚ */
     (void)bsp_oled_init(&app->oled, oled);
     display_init(&app->display, &app->oled);
     bsp_key_init(&app->keys);
