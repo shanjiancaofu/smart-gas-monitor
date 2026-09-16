@@ -14,29 +14,25 @@ static const soft_bus_t soft_buses[2] = {
     {GPIOB, GPIO_PIN_10, GPIO_PIN_11},   /* &hi2c2：存储 */
 };
 
-/* 半个时钟周期的延时。
+/* 半个时钟周期的延时，单位是 CPU 周期。
  *
- * 取 140：Proteus 的 I2CMEM 模型对 SCL 的**每一个**高、低电平都要求下限
- * （TD_CLK_HIGH = 4 us、TD_CLK_LOW = 4.7 us），低于它就按位拒绝通信——存储会
- * 完全写不进去，而 OLED 用的另一个模型要求宽松、照样能亮，所以"屏幕正常"证明
- * 不了"存储也正常"。140 次循环在 Keil 构建里约 5.4 us，两个下限都满足；实物上
- * （GCC -Og）约 26 us，整屏 1024 字节刷新 747 ms，仍在采样超时窗口（10 个采样
- * 周期 = 1 s）以内。
+ * 为什么不用"空循环次数"：原来那种 for (volatile i < N) {} 的写法在 Keil 的
+ * ARMCC 下被整个优化掉了——Proteus 里测到的 STOP 建立时间在 30、60、140 三种
+ * 循环次数下都是 3.110913 us，一模一样，说明循环压根没跑。改成 __NOP() 链之后
+ * 时间钉在 CPU 周期上，编译器无从下手，也顺带把"不同编译结果长度差五倍"这个坑
+ * 填掉了：延时由"循环次数"变成"实际执行指令数"。
  *
- * 这个数是实测出来的，不同编译结果下同样的循环次数长度能差五倍：140 次在 Keil
- * 里是 5.4 us，在 GCC -Og 里是 26 us。改小之前先看一眼仿真日志里有没有
- * "[I2CMEM] ... setup time violated"。 */
-#define I2C_DELAY_LOOPS 140u
-
-static void i2c_delay_loops(unsigned loops)
-{
-    for (volatile unsigned i = 0; i < loops; ++i) {
-    }
-}
+ * 100 次的选择依据：Proteus 的 I2CMEM 模型对 SCL 的**每一个**高、低电平都要
+ * 下限（TD_CLK_HIGH = 4 us、TD_CLK_LOW = 4.7 us），低于它按位拒绝通信——存储
+ * 会完全写不进去。而 OLED 是另一个模型，要求宽松，照样能亮，所以"屏幕正常"
+ * 证明不了"存储也正常"。 */
+#define I2C_DELAY_CYCLES 100u
 
 static void i2c_delay(void)
 {
-    i2c_delay_loops(I2C_DELAY_LOOPS);
+    for (volatile unsigned i = 0; i < I2C_DELAY_CYCLES; ++i) {
+        __NOP();
+    }
 }
 
 /* 句柄只用来选总线，不驱动硬件。 */
