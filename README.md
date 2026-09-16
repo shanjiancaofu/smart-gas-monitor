@@ -22,8 +22,27 @@ powershell -ExecutionPolicy Bypass -File tools/keil_make_bin.ps1
 
 ## 主机测试
 
-python tools/run_host_tests.py --cc cl
-python tools/run_host_tests.py --cc cl --eeprom 2
+```bash
+python tools/run_host_tests.py --cc cl            # 需要 MSVC 环境
+python tools/run_host_tests.py --cc cl --eeprom 2 # 换成 AT24C02 参数
+```
+
+Windows 上不想手工 `vcvars`，直接跑封装：
+
+```bat
+tools\run_host_tests.bat
+```
+
+## 其他工具
+
+| 工具 | 用途 |
+| --- | --- |
+| `tools/build_arm.sh [arm-debug\|arm-release]` | CMake/Ninja 交叉编译。工具链在 STM32CubeIDE 目录下，不在 PATH 上，脚本自己挂 |
+| `tools/openocd.sh flash\|server\|gdb\|run` | ST-Link 烧写与调试。**不要用 STM32CubeIDE 自带的 OpenOCD**，它的脚本组合会递归报错连不上 |
+| `tools/serial_check.py COM11` | 走串口跑一遍协议功能测试，逐条比对真实应答；加 `--alarm` 额外测报警通路 |
+| `tools/gen_oled_font.py` | 由参考工程的字库重新生成 `bsp_oled.c` 里的字模表，字模要改就重跑它 |
+| `tools/render_oled.py dump.bin` | 把读回的 SSD1306 帧缓冲渲染成文字，用来在不看屏幕的情况下确认面板内容 |
+| `tools/ocd_dump_pages.gdb` | 配合上面的脚本，把 OLED 各页面逐页 dump 出来 |
 
 ## 提交规范
 
