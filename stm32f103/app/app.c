@@ -35,7 +35,7 @@ typedef struct {
     history_t history;
     bsp_oled_t oled;
     display_t display;
-    protocol_t protocol;
+    protocol_t protocol_usb, protocol_radio;
 
     bsp_uart_t link_usb, link_radio;
     gas_state_t last_state;
@@ -53,20 +53,18 @@ void app_tick_isr(void)
     ++app_ticks;
 }
 
-static void pump_replies(app_t *app)
+static void pump_reply(protocol_t *protocol, bsp_uart_t *uart)
 {
     const char *line;
-    if (bsp_uart_busy(&app->link_usb) || bsp_uart_busy(&app->link_radio)) {
+    if (bsp_uart_busy(uart)) {
         return;
     }
-    line = protocol_next(&app->protocol);
+    line = protocol_next(protocol);
     if (line == NULL) {
         return;
     }
-    (void)bsp_uart_write(&app->link_usb, line);
-    (void)bsp_uart_write(&app->link_radio, line);
-    (void)bsp_uart_write(&app->link_usb, "\r\n");
-    (void)bsp_uart_write(&app->link_radio, "\r\n");
+    (void)bsp_uart_write(uart, line);
+    (void)bsp_uart_write(uart, "\r\n");
 }
 
 static void poll_links(app_t *app, uint32_t now)
@@ -74,11 +72,14 @@ static void poll_links(app_t *app, uint32_t now)
     char line[SERIAL_LINE_MAX];
     bsp_uart_poll(&app->link_usb);
     bsp_uart_poll(&app->link_radio);
-    if (bsp_uart_read_line(&app->link_usb, line, sizeof(line)) ||
-        bsp_uart_read_line(&app->link_radio, line, sizeof(line))) {
-        protocol_command(&app->protocol, line, now);
+    if (bsp_uart_read_line(&app->link_usb, line, sizeof(line))) {
+        protocol_command(&app->protocol_usb, line, now);
     }
-    pump_replies(app);
+    if (bsp_uart_read_line(&app->link_radio, line, sizeof(line))) {
+        protocol_command(&app->protocol_radio, line, now);
+    }
+    pump_reply(&app->protocol_usb, &app->link_usb);
+    pump_reply(&app->protocol_radio, &app->link_radio);
 }
 
 static void persist_lockout_edge(app_t *app)
@@ -132,7 +133,8 @@ bool app_init(void)
 
     (void)bsp_oled_init(&app->oled, oled);
     display_init(&app->display, &app->oled);
-    protocol_init(&app->protocol, &app->monitor, &app->history);
+    protocol_init(&app->protocol_usb, &app->monitor, &app->history);
+    protocol_init(&app->protocol_radio, &app->monitor, &app->history);
     bsp_uart_init(&app->link_usb, usb);
     bsp_uart_init(&app->link_radio, radio);
     app->last_state = app->monitor.state;
@@ -195,7 +197,8 @@ static void history_update(app_t *app, uint32_t now)
             app->display.history_index = 0u;
         }
 
-        protocol_alarm(&app->protocol);
+        protocol_alarm(&app->protocol_usb);
+        protocol_alarm(&app->protocol_radio);
     }
     app->last_state = app->monitor.state;
 }
