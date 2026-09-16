@@ -200,9 +200,11 @@ void gas_update(gas_t *m, uint32_t now)
             set_lockout(m, now);
         }
         m->safe_timing = false;
+        ++m->dbg_timeout;
         return;
     }
     if ((uint32_t)(now - m->started_ms) < GAS_WARMUP_MS) {
+        ++m->dbg_warmup;
         m->alarm_mask = 0;
         m->state = GAS_WARMUP;
         m->safe_timing = false;
@@ -224,6 +226,7 @@ void gas_update(gas_t *m, uint32_t now)
             ++m->alarm_count;
         }
         m->alarm_mask = alarm;
+        ++m->dbg_alarm;
         set_lockout(m, now);
         m->state = GAS_ALARM;
         m->safe_timing = false;
@@ -231,12 +234,14 @@ void gas_update(gas_t *m, uint32_t now)
     }
     m->alarm_mask = 0;
     if (safe) {
+        ++m->dbg_safe;
         if (!m->safe_timing) {
             m->safe_since_ms = now;
             m->safe_timing = true;
         }
         m->reset_ready = (uint32_t)(now - m->safe_since_ms) >= GAS_SAFE_HOLD_MS;
     } else {
+        ++m->dbg_unsafe;
         m->safe_timing = false;
     }
     m->state = m->latched ? GAS_SAFE_WAIT : (warning ? GAS_WARNING : GAS_NORMAL);

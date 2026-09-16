@@ -44,6 +44,10 @@ typedef struct {
 
     uint8_t item;
     bool sample_valid, sample_attempted, latched, safe_timing, reset_ready, dirty;
+
+    /* gas_update() 各分支各走了多少次。排查「状态机不走预期分支」这类问题时
+     * 直接读这几个计数器，比反复猜快得多。 */
+    uint16_t dbg_timeout, dbg_warmup, dbg_alarm, dbg_unsafe, dbg_safe;
 } gas_t;
 
 const char *gas_channel_name(gas_channel_t channel);
