@@ -14,6 +14,7 @@ void alarm_init(alarm_t *alarm)
 {
     alarm->active = false;
     alarm->started_tick = 0;
+    alarm->alarm_mask = 0;
     alarm_force_safe();
     bsp_led_set(false, false, false, false);
 }
@@ -24,10 +25,11 @@ void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick)
     bool open = gas_valve_open(gas);
     uint16_t duration = config_buzzer_duration_ms(&gas->config);
 
-    if (active && !alarm->active) {
+    if (active && (!alarm->active || (gas->alarm_mask & (uint8_t)~alarm->alarm_mask) != 0u)) {
         alarm->started_tick = tick;
     }
     alarm->active = active;
+    alarm->alarm_mask = active ? gas->alarm_mask : 0u;
 
     /* 先落实关阀，再更新提示输出。 */
     if (open) {

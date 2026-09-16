@@ -122,6 +122,10 @@ bool app_init(void)
     app->store.write = bsp_eeprom_write;
     config_defaults(&config);
     app->storage_ok = config_load(&app->store, &config);
+    if (!app->storage_ok) {
+        /* A blank EEPROM is a first boot, not a hardware failure. Persist defaults. */
+        app->storage_ok = config_save(&app->store, &config);
+    }
 
     (void)history_init(&app->history, &app->store);
     now = HAL_GetTick();

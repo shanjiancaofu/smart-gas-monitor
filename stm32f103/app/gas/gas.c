@@ -202,6 +202,12 @@ void gas_update(gas_t *m, uint32_t now)
         m->safe_timing = false;
         return;
     }
+    if ((uint32_t)(now - m->started_ms) < GAS_WARMUP_MS) {
+        m->alarm_mask = 0;
+        m->state = GAS_WARMUP;
+        m->safe_timing = false;
+        return;
+    }
     for (i = 0; i < GAS_COUNT; ++i) {
         if (m->adc[i] >= m->config.alarm[i]) {
             alarm |= (uint8_t)(1u << i);
@@ -224,11 +230,6 @@ void gas_update(gas_t *m, uint32_t now)
         return;
     }
     m->alarm_mask = 0;
-    if ((uint32_t)(now - m->started_ms) < GAS_WARMUP_MS) {
-        m->state = GAS_WARMUP;
-        m->safe_timing = false;
-        return;
-    }
     if (safe) {
         if (!m->safe_timing) {
             m->safe_since_ms = now;

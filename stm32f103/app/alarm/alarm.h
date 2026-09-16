@@ -5,6 +5,7 @@
 typedef struct {
     bool active;
     uint32_t started_tick;
+    uint8_t alarm_mask;
 } alarm_t;
 
 void alarm_init(alarm_t *alarm);
