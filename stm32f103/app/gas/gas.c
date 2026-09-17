@@ -239,8 +239,8 @@ void gas_update(gas_t *m, uint32_t now)
         return;
     }
     m->alarm_mask = 0;
-    /* Recovery hysteresis: enter the safe window below 70%, but once the
-       timer/READY state is active, do not drop it until a channel reaches 75%.
+    /* Recovery hysteresis: enter the safe window below 80%, but once the
+       timer/READY state is active, do not drop it until a channel reaches 90%.
        This prevents ADC quantization and potentiometer noise from flashing
        LOCKED/READY while still rejecting a real concentration rise. */
     if (!m->safe_timing) {

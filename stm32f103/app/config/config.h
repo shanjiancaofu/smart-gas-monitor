@@ -19,24 +19,33 @@
 
 #define GAS_WARNING_PERCENT 80u
 /* Comment normalized for portability. */
-#define GAS_SAFE_PERCENT 70u
-#define GAS_SAFE_RELEASE_PERCENT 75u
+#define GAS_SAFE_PERCENT 80u
+#define GAS_SAFE_RELEASE_PERCENT 90u
 
+#ifndef USE_SOFT_I2C
+#define USE_SOFT_I2C 0
+#endif
+#if USE_SOFT_I2C
+/* Proteus runs the 72 MHz MCU well below real time; keep demos responsive. */
+#define GAS_SAFE_HOLD_MS 500u
+#define GAS_WARMUP_MS 500u
+#else
 #define GAS_SAFE_HOLD_MS 3000u
-/* 预热期保持关阀且不判阈值。取 3 秒：真实 MQ 传感器要热机几分钟以上才稳定，
- * 那个时长对课设演示没有意义。它和上一条的 GAS_SAFE_HOLD_MS 数值相同但含义
- * 无关——一个是开机等待，一个是恢复判定要求的连续安全时长。 */
 #define GAS_WARMUP_MS 3000u
+#endif
+/* 棰勭儹鏈熶繚鎸佸叧闃€涓斾笉鍒ら槇鍊笺€傚彇 3 绉掞細鐪熷疄 MQ 浼犳劅鍣ㄨ鐑満鍑犲垎閽熶互涓婃墠绋冲畾锛?
+ * 閭ｄ釜鏃堕暱瀵硅璁炬紨绀烘病鏈夋剰涔夈€傚畠鍜屼笂涓€鏉＄殑 GAS_SAFE_HOLD_MS 鏁板€肩浉鍚屼絾鍚箟
+ * 鏃犲叧鈥斺€斾竴涓槸寮€鏈虹瓑寰咃紝涓€涓槸鎭㈠鍒ゅ畾瑕佹眰鐨勮繛缁畨鍏ㄦ椂闀裤€?*/
 #define GAS_SAVE_DELAY_MS 2000u
-/* 多久没采到有效样本就判采样中断：窗口 = 采样周期 + 这个固定余量。
+/* 澶氫箙娌￠噰鍒版湁鏁堟牱鏈氨鍒ら噰鏍蜂腑鏂細绐楀彛 = 閲囨牱鍛ㄦ湡 + 杩欎釜鍥哄畾浣欓噺銆?
  *
- * 用「周期 + 1 秒」而不是「周期 × 倍数」：这个窗口要盖住的是**单次合法阻塞**，
- * 最大的一笔是显示刷新（软件 I2C 整屏 1024 字节，实测 200~750 ms，视编译结果
- * 而定）。余量是个绝对值，跟采样周期无关；用倍数的话，周期配到 5000 ms 时窗口
- * 会涨到 50 秒，采样器真死了也要 50 秒才报出来。
+ * 鐢ㄣ€屽懆鏈?+ 1 绉掋€嶈€屼笉鏄€屽懆鏈?脳 鍊嶆暟銆嶏細杩欎釜绐楀彛瑕佺洊浣忕殑鏄?*鍗曟鍚堟硶闃诲**锛?
+ * 鏈€澶х殑涓€绗旀槸鏄剧ず鍒锋柊锛堣蒋浠?I2C 鏁村睆 1024 瀛楄妭锛屽疄娴?200~750 ms锛岃缂栬瘧缁撴灉
+ * 鑰屽畾锛夈€備綑閲忔槸涓粷瀵瑰€硷紝璺熼噰鏍峰懆鏈熸棤鍏筹紱鐢ㄥ€嶆暟鐨勮瘽锛屽懆鏈熼厤鍒?5000 ms 鏃剁獥鍙?
+ * 浼氭定鍒?50 绉掞紝閲囨牱鍣ㄧ湡姝讳簡涔熻 50 绉掓墠鎶ュ嚭鏉ャ€?
  *
- * 取 1 秒：默认 100 ms 周期下窗口 1.1 s，比最慢的一次整屏刷新（约 750 ms）还
- * 宽出三分之一；周期调到 5000 ms 时窗口 6 s，也没有失控。 */
+ * 鍙?1 绉掞細榛樿 100 ms 鍛ㄦ湡涓嬬獥鍙?1.1 s锛屾瘮鏈€鎱㈢殑涓€娆℃暣灞忓埛鏂帮紙绾?750 ms锛夎繕
+ * 瀹藉嚭涓夊垎涔嬩竴锛涘懆鏈熻皟鍒?5000 ms 鏃剁獥鍙?6 s锛屼篃娌℃湁澶辨帶銆?*/
 #define GAS_SAMPLE_TIMEOUT_MARGIN_MS 1000u
 
 /* Comment normalized for portability. */

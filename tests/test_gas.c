@@ -356,7 +356,7 @@ static void test_ready_hysteresis(void)
     }
     assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
 
-    mid = (uint16_t)((uint32_t)m.config.alarm[0] * 72u / 100u);
+    mid = (uint16_t)((uint32_t)m.config.alarm[0] * 85u / 100u);
     sample(&m, T0 + 3300u, mid, 500u, 500u);
     assert(m.reset_ready);
 
