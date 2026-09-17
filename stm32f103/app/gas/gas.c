@@ -191,7 +191,7 @@ void gas_init(gas_t *m, const gas_config_t *c, uint32_t now)
 void gas_update(gas_t *m, uint32_t now)
 {
     unsigned i;
-    bool warning = false, safe = true;
+    bool warning = false, safe_enter = true, safe_hold = true;
     uint8_t alarm = 0;
     m->reset_ready = false;
     if (!m->sample_valid || (uint32_t)(now - m->sample_ms) >= gas_sample_timeout_ms(m)) {
@@ -220,7 +220,11 @@ void gas_update(gas_t *m, uint32_t now)
             warning = true;
         }
         if (m->adc[i] >= gas_safe_threshold(m->config.alarm[i])) {
-            safe = false;
+            safe_enter = false;
+        }
+        if (m->adc[i] >= (uint16_t)((uint32_t)m->config.alarm[i] *
+                                     GAS_SAFE_RELEASE_PERCENT / 100u)) {
+            safe_hold = false;
         }
     }
     if (alarm != 0) {
@@ -235,16 +239,26 @@ void gas_update(gas_t *m, uint32_t now)
         return;
     }
     m->alarm_mask = 0;
-    if (safe) {
-        ++m->dbg_safe;
-        if (!m->safe_timing) {
+    /* Recovery hysteresis: enter the safe window below 70%, but once the
+       timer/READY state is active, do not drop it until a channel reaches 75%.
+       This prevents ADC quantization and potentiometer noise from flashing
+       LOCKED/READY while still rejecting a real concentration rise. */
+    if (!m->safe_timing) {
+        if (safe_enter) {
+            ++m->dbg_safe;
             m->safe_since_ms = now;
             m->safe_timing = true;
+        } else {
+            ++m->dbg_unsafe;
         }
-        m->reset_ready = (uint32_t)(now - m->safe_since_ms) >= GAS_SAFE_HOLD_MS;
-    } else {
+    } else if (!safe_hold) {
         ++m->dbg_unsafe;
         m->safe_timing = false;
+    } else {
+        ++m->dbg_safe;
+    }
+    if (m->safe_timing) {
+        m->reset_ready = (uint32_t)(now - m->safe_since_ms) >= GAS_SAFE_HOLD_MS;
     }
     m->state = m->latched ? GAS_SAFE_WAIT : (warning ? GAS_WARNING : GAS_NORMAL);
 }

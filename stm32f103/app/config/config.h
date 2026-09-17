@@ -20,6 +20,7 @@
 #define GAS_WARNING_PERCENT 80u
 /* Comment normalized for portability. */
 #define GAS_SAFE_PERCENT 70u
+#define GAS_SAFE_RELEASE_PERCENT 75u
 
 #define GAS_SAFE_HOLD_MS 3000u
 /* 预热期保持关阀且不判阈值。取 3 秒：真实 MQ 传感器要热机几分钟以上才稳定，

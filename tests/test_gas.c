@@ -341,6 +341,30 @@ static void test_buzzer_set(void)
     assert(gas_valve_open(&m));
 }
 
+static void test_ready_hysteresis(void)
+{
+    gas_t m;
+    uint32_t t;
+    uint16_t mid;
+    uint16_t exit;
+
+    run_to_normal(&m, 0u);
+    sample(&m, T0 + 100u, m.config.alarm[0], 500u, 500u);
+    assert(m.state == GAS_ALARM);
+    for (t = T0 + 200u; t <= T0 + 3200u; t += 100u) {
+        sample(&m, t, 500u, 500u, 500u);
+    }
+    assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
+
+    mid = (uint16_t)((uint32_t)m.config.alarm[0] * 72u / 100u);
+    sample(&m, T0 + 3300u, mid, 500u, 500u);
+    assert(m.reset_ready);
+
+    exit = (uint16_t)((uint32_t)m.config.alarm[0] * GAS_SAFE_RELEASE_PERCENT / 100u);
+    sample(&m, T0 + 3400u, exit, 500u, 500u);
+    assert(!m.reset_ready && !m.safe_timing);
+}
+
 typedef struct { unsigned calls; unsigned fail_at; bool invalid; } adc_fake_t;
 
 static bool read_adc(void *context, uint8_t channel, uint16_t *value)
@@ -375,6 +399,7 @@ int main(void)
     test_buzzer_keys();
     test_buzzer_set();
     test_adc_average();
+    test_ready_hysteresis();
     test_states();
     test_power_up_opens();
     test_no_fault_before_first_sample();
