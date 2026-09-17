@@ -127,7 +127,9 @@ const char *gas_state_name(gas_state_t state)
     case GAS_ALARM:
         return "ALARM";
     case GAS_SAFE_WAIT:
-        return "SAFE";
+        /* 不要写成 SAFE：这个状态是「还锁着，等环境安全满 3 秒再按 KEY4」，
+         * 叫 SAFE 会让人以为已经恢复完了。面板上拆成 LOCKED/READY 显示。 */
+        return "SAFE_WAIT";
     case GAS_FAULT:
         return "FAULT";
     default:
