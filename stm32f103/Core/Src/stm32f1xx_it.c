@@ -26,7 +26,6 @@
  * 压到安全状态，再停在这里。它们是最后一道防线，见 alarm/alarm.c。 */
 #include "alarm/alarm.h"
 #include "app.h"
-#include "bsp_servo.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -209,7 +208,6 @@ void SysTick_Handler(void)
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
-  bsp_servo_tick_isr();
   /* USER CODE END SysTick_IRQn 1 */
 }
 
