@@ -67,6 +67,9 @@ int main(void)
             assert(rows[item + 1u][0] == '>');
         }
         assert(strstr(rows[0], "SETTINGS") != NULL);
+        /* 存储状态摆在设置页最后一行：历史页只会说「没有记录」，分不清是真的没
+         * 报过警还是存储掉了。 */
+        assert(strstr(rows[GAS_ITEM_BUZZER + 2u], "MEM ") != NULL);
     }
 
     display_key(&display, &gas, &history, GAS_KEY_PAGE, 105);

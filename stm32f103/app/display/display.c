@@ -37,6 +37,16 @@ static void putf(display_t *d, unsigned page, bool large, const char *format, ..
     put(d, page, large, text);
 }
 
+/* 锁存期间光看 "SAFE" 会以为已经恢复完了：那个状态其实是「还锁着、阀门关着、
+ * 风扇开着，等环境安全满 3 秒再按 KEY4」。分成两个词，一眼看出还差什么。 */
+static const char *state_text(const gas_t *m)
+{
+    if (m->state == GAS_SAFE_WAIT) {
+        return m->reset_ready ? "READY" : "LOCKED";
+    }
+    return gas_state_name(m->state);
+}
+
 static const char *valve_name(bool open)
 {
     return open ? "OPEN" : "CLOSED";
@@ -50,7 +60,7 @@ static void draw_realtime(display_t *d, const gas_t *m)
              m->adc[i], m->config.alarm[i]);
     }
     /* Comment normalized for portability. */
-    putf(d, 6u, true, "%-7s %s", gas_state_name(m->state), valve_name(gas_valve_open(m)));
+    putf(d, 6u, true, "%-7s %s", state_text(m), valve_name(gas_valve_open(m)));
 }
 
 /* 可调项有 5 个，加上标题一共 6 行。大号字体一行占两个 page，8 个 page 只放
@@ -63,7 +73,6 @@ static void draw_settings(display_t *d, const gas_t *m, bool storage_ok)
 {
     char value[16];
     unsigned i;
-    (void)storage_ok;
     putf(d, 0u, false, "SETTINGS");
     for (i = 0; i < GAS_COUNT; ++i) {
         putf(d, i + 1u, false, "%c%s %u", m->item == (uint8_t)i ? '>' : ' ',
@@ -74,6 +83,9 @@ static void draw_settings(display_t *d, const gas_t *m, bool storage_ok)
     config_buzzer_name(m->config.buzzer, value, sizeof(value));
     putf(d, GAS_ITEM_BUZZER + 1u, false, "%cBUZZER %s",
          m->item == GAS_ITEM_BUZZER ? '>' : ' ', value);
+    /* 存储掉了的时候，历史页只会显示「没有记录」，跟「真的没报过警」分不清。
+     * 把存储状态摆在设置页，一眼能判断 HIST 0/510 是哪种。 */
+    putf(d, GAS_ITEM_BUZZER + 2u, false, "MEM %s", storage_ok ? "OK" : "ERR");
 }
 
 static void draw_alarm(display_t *d, const gas_t *m)
@@ -150,7 +162,7 @@ void display_update(display_t *d, const gas_t *m, const history_t *h, bool stora
         break;
     }
     /* 一次推完所有脏页。实时页三路读数每帧都在变，只有推满才追得上变化速度；
-     * 采样超时窗口已经放大到 10 个采样周期，整屏刷新塞得进去。 */
+     * 采样超时窗口按「采样周期 + 1 秒」定尺寸，整屏刷新塞得进去。 */
     bsp_oled_flush(d->oled, SSD1306_PAGES);
     d->screen = screen;
     d->last_draw_ms = now;
