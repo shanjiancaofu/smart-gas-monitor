@@ -15,14 +15,18 @@
 #define FAULT_BEEP_PERIOD_TICKS 100u
 
 typedef struct {
-    bool active;
-    uint32_t started_tick;
-    uint8_t alarm_mask;
+    volatile bool active;
+    volatile bool fault;
+    volatile uint32_t started_tick;
+    volatile uint16_t duration_ms;
+    volatile uint8_t alarm_mask;
+    gas_state_t state;
 } alarm_t;
 
 void alarm_init(alarm_t *alarm);
 /* tick 为 TIM2 的 10 ms 计数；LED、响铃窗口及继电器动作在这里决策。 */
 void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick);
+void alarm_tick_isr(const alarm_t *alarm, uint32_t tick);
 /* 异常入口直接关阀并静默输出；复位浮空阶段仍依赖硬件下拉。 */
 void alarm_force_safe(void);
 #endif

@@ -46,7 +46,11 @@
  *
  * 鍙?1 绉掞細榛樿 100 ms 鍛ㄦ湡涓嬬獥鍙?1.1 s锛屾瘮鏈€鎱㈢殑涓€娆℃暣灞忓埛鏂帮紙绾?750 ms锛夎繕
  * 瀹藉嚭涓夊垎涔嬩竴锛涘懆鏈熻皟鍒?5000 ms 鏃剁獥鍙?6 s锛屼篃娌℃湁澶辨帶銆?*/
+#if USE_SOFT_I2C
+#define GAS_SAMPLE_TIMEOUT_MARGIN_MS 5000u
+#else
 #define GAS_SAMPLE_TIMEOUT_MARGIN_MS 1000u
+#endif
 
 /* Comment normalized for portability. */
 #define GAS_BUZZER_OFF 0u

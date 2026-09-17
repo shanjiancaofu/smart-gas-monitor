@@ -23,8 +23,11 @@ void alarm_force_safe(void)
 void alarm_init(alarm_t *alarm)
 {
     alarm->active = false;
+    alarm->fault = false;
     alarm->started_tick = 0;
+    alarm->duration_ms = GAS_BUZZER_OFF;
     alarm->alarm_mask = 0;
+    alarm->state = GAS_WARMUP;
 
     /* 正常上电：所有输出置为不动作。**这里刻意不调 alarm_force_safe()**——
      * 那个是给 HardFault / Error_Handler 的，它会把排风扇打开。
@@ -40,53 +43,74 @@ void alarm_init(alarm_t *alarm)
     bsp_led_set(false, false, false, false);
 }
 
+static bool alarm_buzzer_at(const alarm_t *alarm, uint32_t tick)
+{
+    uint32_t elapsed;
+    uint32_t phase;
+    unsigned count = 0u;
+    unsigned i;
+
+    if (!alarm->active || alarm->duration_ms == GAS_BUZZER_OFF) {
+        return false;
+    }
+    elapsed = tick - alarm->started_tick;
+    if (alarm->duration_ms != GAS_BUZZER_FOREVER_MS &&
+        elapsed >= alarm->duration_ms / GAS_TICK_MS) {
+        return false;
+    }
+    if (alarm->fault) {
+        return elapsed % FAULT_BEEP_PERIOD_TICKS < FAULT_BEEP_ON_TICKS;
+    }
+    for (i = 0; i < GAS_COUNT; ++i) {
+        if (alarm->alarm_mask & (1u << i)) {
+            ++count;
+        }
+    }
+    if (count == 0u) {
+        count = 1u;
+    }
+    phase = elapsed % (count * BEEP_STEP_TICKS + BEEP_GROUP_GAP_TICKS);
+    for (i = 0; i < count; ++i) {
+        uint32_t pulse = i * BEEP_STEP_TICKS;
+        if (phase >= pulse && phase < pulse + BEEP_ON_TICKS) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void alarm_tick_isr(const alarm_t *alarm, uint32_t tick)
+{
+    bsp_buzzer_set(alarm_buzzer_at(alarm, tick));
+}
+
 void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick)
 {
     bool active = gas->state == GAS_ALARM || gas->state == GAS_FAULT;
     bool open = gas_valve_open(gas);
     uint16_t duration = config_buzzer_duration_ms(&gas->config);
 
-    if (active && (!alarm->active || (gas->alarm_mask & (uint8_t)~alarm->alarm_mask) != 0u)) {
+    if (active && (!alarm->active || alarm->state != gas->state ||
+                   (gas->alarm_mask & (uint8_t)~alarm->alarm_mask) != 0u)) {
         alarm->started_tick = tick;
     }
-    alarm->active = active;
+    /* Publish active last when enabling and first when disabling, so the
+       timer ISR never consumes a partially updated pattern. */
+    if (!active) {
+        alarm->active = false;
+    }
+    alarm->fault = gas->state == GAS_FAULT;
+    alarm->duration_ms = duration;
     alarm->alarm_mask = active ? gas->alarm_mask : 0u;
+    alarm->state = gas->state;
+    if (active) {
+        alarm->active = true;
+    }
 
-    /* 先落实关阀，再更新提示输出。 */
-    /* A closed valve during normal warmup does not require exhaust.
-       A persisted lockout keeps exhaust running even during warmup. */
     bsp_fan_set(active || gas->state == GAS_SAFE_WAIT || gas->latched ||
                 gas->config.lockout);
     bsp_servo_set(open);
-    bool buzzer = false;
-    if (active && gas->state == GAS_FAULT) {
-        uint32_t phase = (tick - alarm->started_tick) % FAULT_BEEP_PERIOD_TICKS;
-        bsp_buzzer_set(duration != GAS_BUZZER_OFF && phase < FAULT_BEEP_ON_TICKS);
-        bsp_led_set(false, false, true, open);
-        return;
-    }
-    if (active && (duration == GAS_BUZZER_FOREVER_MS ||
-                   (uint32_t)(tick - alarm->started_tick) < duration / GAS_TICK_MS)) {
-        unsigned count = 0;
-        uint32_t elapsed = tick - alarm->started_tick;
-        uint32_t phase;
-        for (unsigned i = 0; i < GAS_COUNT; ++i) {
-            if (gas->alarm_mask & (1u << i)) {
-                ++count;
-            }
-        }
-        if (count == 0) {
-            count = 1;
-        }
-        /* 一组里有 count 滴，每滴的起点往后挪一个 BEEP_STEP_TICKS。 */
-        phase = elapsed % (count * BEEP_STEP_TICKS + BEEP_GROUP_GAP_TICKS);
-        for (unsigned i = 0; i < count; ++i) {
-            uint32_t start = i * BEEP_STEP_TICKS;
-            if (phase >= start && phase < start + BEEP_ON_TICKS) {
-                buzzer = true;
-            }
-        }
-    }
-    bsp_buzzer_set(buzzer);
-    bsp_led_set(gas->state == GAS_NORMAL, !active && gas->state != GAS_NORMAL, active, open);
+    alarm_tick_isr(alarm, tick);
+    bsp_led_set(gas->state == GAS_NORMAL, !active && gas->state != GAS_NORMAL,
+                active, open);
 }

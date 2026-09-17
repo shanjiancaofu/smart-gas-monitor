@@ -53,6 +53,7 @@ void app_tick_isr(void)
 {
 
     ++app_ticks;
+    alarm_tick_isr(&system_app.alarm, app_ticks);
 }
 
 static void pump_reply(protocol_t *protocol, bsp_uart_t *uart)

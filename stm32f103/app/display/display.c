@@ -133,7 +133,8 @@ void display_update(display_t *d, const gas_t *m, const history_t *h, bool stora
     /* Comment normalized for portability. */
     screen = m->state == GAS_ALARM ? DISPLAY_ALARM :
              (m->state == GAS_FAULT ? DISPLAY_FAULT : d->page);
-    if (screen == d->screen && (uint32_t)(now - d->last_draw_ms) < DISPLAY_REFRESH_MS) {
+    if (screen == d->screen && d->oled->dirty == 0u &&
+        (uint32_t)(now - d->last_draw_ms) < DISPLAY_REFRESH_MS) {
         return;
     }
     /* Comment normalized for portability. */
@@ -163,7 +164,7 @@ void display_update(display_t *d, const gas_t *m, const history_t *h, bool stora
     }
     /* 一次推完所有脏页。实时页三路读数每帧都在变，只有推满才追得上变化速度；
      * 采样超时窗口按「采样周期 + 1 秒」定尺寸，整屏刷新塞得进去。 */
-    bsp_oled_flush(d->oled, SSD1306_PAGES);
+    bsp_oled_flush(d->oled, 1u);
     d->screen = screen;
     d->last_draw_ms = now;
 }

@@ -51,7 +51,9 @@ int main(void)
     assert(relay && !servo_open && !valve_led && red_led && buzzer);
 
     /* 单滴刚好响 BEEP_ON_TICKS 个节拍，之后到下一滴起点之间是安静的。 */
-    alarm_update(&alarm, &gas, start + BEEP_ON_TICKS);
+    /* The 10 ms timer ISR must turn the buzzer off even while the main loop
+       is blocked in a slow Soft-I2C OLED transfer. */
+    alarm_tick_isr(&alarm, start + BEEP_ON_TICKS);
     assert(!buzzer);
 
     /* 多一路报警会重新起一拍，蜂鸣器立刻再响。 */
