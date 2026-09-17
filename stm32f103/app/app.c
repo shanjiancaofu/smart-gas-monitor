@@ -110,7 +110,10 @@ bool app_init(void)
     uint32_t now;
     memset(app, 0, sizeof(*app));
 
-    bsp_servo_init();
+    /* 舵机 PWM 起不来的话阀门位置无从保证，直接当初始化失败处理，别静默继续。 */
+    if (!bsp_servo_init()) {
+        return false;
+    }
     alarm_init(&app->alarm);
 
     if (HAL_TIM_Base_Start_IT(tick) != HAL_OK) {
