@@ -2,8 +2,8 @@
 #include "tim.h"
 
 /* Calibrate these pulse widths against the physical valve linkage. */
-#define SERVO_CLOSE_US 1000u
-#define SERVO_OPEN_US 2000u
+#define SERVO_CLOSE_US 500u
+#define SERVO_OPEN_US 2500u
 
 bool bsp_servo_init(void)
 {

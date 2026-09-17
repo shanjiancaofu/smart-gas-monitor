@@ -30,7 +30,7 @@
 | PA6 | GPIO | 红 LED，ALARM/FAULT |
 | PA7 | GPIO | 有源蜂鸣器 |
 | PA8 | GPIO | 风扇继电器 IN，高电平启动，默认 OFF |
-| PB8 | TIM4_CH3 PWM | 舵机燃气阀门，50 Hz，1000 us CLOSE / 2000 us OPEN（待校准） |
+| PB8 | TIM4_CH3 PWM | 舵机燃气阀门，50 Hz，500 us CLOSE / 2500 us OPEN（待校准） |
 | PA5 | GPIO | 阀门状态 LED |
 | PB12 | EXTI12 | KEY1 页面/选择 |
 | PB13 | EXTI13 | KEY2 增加 |
@@ -220,7 +220,7 @@ NO ──── +     − ──── GND
 - **信号线直接接 PB8，不需要外加驱动。** PB8 复用为 TIM4_CH3，`MX_GPIO_Init()` 已把它配成复用推挽并保持低电平；TIM4 的 CH1/CH2（PB6/PB7）没有配置，所以不和 I2C1 打架。
 - **舵机电源必须单独供。** 舵机堵转电流能到 1 A 以上，从最小系统板的 `3V3` 脚取电会把 MCU 拉复位。**和 MCU 共地是必须的**。
 - 脉宽由 `bsp_servo.c` 的 `SERVO_CLOSE_US = 1000`、`SERVO_OPEN_US = 2000` 决定。**哪个是「关」取决于舵机臂的装配方向**，实物上按实际行程校准，必要时把两个宏对调。
-- `MX_TIM4_Init()` 已经把 CCR3 预置成 1000 us，所以 PWM 一启动就是关阀位置，不会在初始化瞬间乱甩。
+- `MX_TIM4_Init()` 已经把 CCR3 预置成 500 us，所以 PWM 一启动就是关阀位置，不会在初始化瞬间乱甩。
 - 舵机**断电后不保持位置**，掉电期间阀门可能被气流推动。系统靠 EEPROM 里的 `lockout` 保证重新上电时先关阀，详见[硬件接口：锁存与掉电恢复](hardware_interface.md#锁存与掉电恢复)。
 
 ### 5.8 按键

@@ -8,9 +8,11 @@
  *
  * 放在头文件里是为了让主机测试按同一组常量推导时刻——测试里写死数字的话，
  * 每次调这几个档位都要回去改测试。 */
-#define BEEP_ON_TICKS 50u
-#define BEEP_STEP_TICKS 70u
-#define BEEP_GROUP_GAP_TICKS 50u
+#define BEEP_ON_TICKS 8u
+#define BEEP_STEP_TICKS 18u
+#define BEEP_GROUP_GAP_TICKS 42u
+#define FAULT_BEEP_ON_TICKS 10u
+#define FAULT_BEEP_PERIOD_TICKS 50u
 
 typedef struct {
     bool active;

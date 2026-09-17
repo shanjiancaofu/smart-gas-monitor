@@ -72,6 +72,8 @@ int main(void)
     gas.state = GAS_FAULT;
     alarm_update(&alarm, &gas, 1001);
     assert(buzzer && relay && !servo_open && red_led);
+    alarm_update(&alarm, &gas, 1001u + FAULT_BEEP_ON_TICKS);
+    assert(!buzzer && relay && !servo_open && red_led);
     gas.config.buzzer = GAS_BUZZER_OFF;
     alarm_update(&alarm, &gas, 1002);
     assert(!buzzer);

@@ -60,7 +60,8 @@ void alarm_update(alarm_t *alarm, const gas_t *gas, uint32_t tick)
     bsp_servo_set(open);
     bool buzzer = false;
     if (active && gas->state == GAS_FAULT) {
-        bsp_buzzer_set(duration != GAS_BUZZER_OFF);
+        uint32_t phase = (tick - alarm->started_tick) % FAULT_BEEP_PERIOD_TICKS;
+        bsp_buzzer_set(duration != GAS_BUZZER_OFF && phase < FAULT_BEEP_ON_TICKS);
         bsp_led_set(false, false, true, open);
         return;
     }

@@ -8,7 +8,7 @@
 | PA1 | MQ6_AO | MQ-6 | ADC1_IN1，10k/18k 分压 |
 | PA4 | MQ7_AO | MQ-7 | ADC1_IN4，10k/18k 分压 |
 | PA8 | RELAY | 风扇继电器 | HIGH 触发：高电平风扇开，低电平风扇关；建议 10k 下拉 |
-| PB8 | TIM4_CH3 | 舵机燃气阀门 | 50 Hz PWM，暂定 1000 us 关闭、2000 us 打开，实物校准 |
+| PB8 | TIM4_CH3 | 舵机燃气阀门 | 50 Hz PWM，暂定 500 us 关闭、2500 us 打开，实物校准 |
 | PA5 | VALVE_LED | 阀门指示灯 | 软件开阀指示 |
 | PA6 | LED_RED | 红灯 | ALARM/FAULT |
 | PA7 | BUZZER | 蜂鸣器 | 低电平触发，报警节奏输出 |
