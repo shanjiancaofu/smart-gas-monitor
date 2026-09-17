@@ -69,6 +69,10 @@ void Error_Handler(void);
 #define LED_RED_GPIO_Port GPIOA
 #define BUZZER_Pin GPIO_PIN_7
 #define BUZZER_GPIO_Port GPIOA
+#define LED_GREEN_Pin GPIO_PIN_0
+#define LED_GREEN_GPIO_Port GPIOB
+#define LED_YELLOW_Pin GPIO_PIN_1
+#define LED_YELLOW_GPIO_Port GPIOB
 #define KEY1_Pin GPIO_PIN_12
 #define KEY1_GPIO_Port GPIOB
 #define KEY1_EXTI_IRQn EXTI15_10_IRQn
@@ -85,10 +89,7 @@ void Error_Handler(void);
 #define RELAY_GPIO_Port GPIOA
 #define KEY5_Pin GPIO_PIN_5
 #define KEY5_GPIO_Port GPIOB
-#define LED_GREEN_Pin GPIO_PIN_0
-#define LED_GREEN_GPIO_Port GPIOB
-#define LED_YELLOW_Pin GPIO_PIN_1
-#define LED_YELLOW_GPIO_Port GPIOB
+#define KEY5_EXTI_IRQn EXTI9_5_IRQn
 
 /* USER CODE BEGIN Private defines */
 

@@ -1,42 +1,47 @@
 {
   "version": 3,
-  "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 22,
-    "patch": 0
-  },
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
   "configurePresets": [
     {
-      "name": "arm-debug",
-      "displayName": "STM32F103 Debug",
+      "name": "arm-base",
+      "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/arm-debug",
       "toolchainFile": "${sourceDir}/cmake/arm-none-eabi-gcc.cmake",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-      }
+      "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON" }
     },
     {
-      "name": "arm-release",
-      "displayName": "STM32F103 Release",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/arm-release",
-      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi-gcc.cmake",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-      }
+      "name": "arm-debug-hw",
+      "inherits": "arm-base",
+      "displayName": "STM32F103 Debug / HW I2C",
+      "binaryDir": "${sourceDir}/build/arm-debug-hw",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "USE_SOFT_I2C": "OFF" }
+    },
+    {
+      "name": "arm-debug-soft",
+      "inherits": "arm-base",
+      "displayName": "STM32F103 Debug / Soft I2C",
+      "binaryDir": "${sourceDir}/build/arm-debug-soft",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "USE_SOFT_I2C": "ON" }
+    },
+    {
+      "name": "arm-release-hw",
+      "inherits": "arm-base",
+      "displayName": "STM32F103 Release / HW I2C",
+      "binaryDir": "${sourceDir}/build/arm-release-hw",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "USE_SOFT_I2C": "OFF" }
+    },
+    {
+      "name": "arm-release-soft",
+      "inherits": "arm-base",
+      "displayName": "STM32F103 Release / Soft I2C",
+      "binaryDir": "${sourceDir}/build/arm-release-soft",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "USE_SOFT_I2C": "ON" }
     }
   ],
   "buildPresets": [
-    {
-      "name": "arm-debug",
-      "configurePreset": "arm-debug"
-    },
-    {
-      "name": "arm-release",
-      "configurePreset": "arm-release"
-    }
+    { "name": "arm-debug-hw", "configurePreset": "arm-debug-hw" },
+    { "name": "arm-debug-soft", "configurePreset": "arm-debug-soft" },
+    { "name": "arm-release-hw", "configurePreset": "arm-release-hw" },
+    { "name": "arm-release-soft", "configurePreset": "arm-release-soft" }
   ]
 }

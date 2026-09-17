@@ -6,7 +6,7 @@
 # 一次也没烧进去过。ESP-IDF 带的那份 OpenOCD 有完整的标准脚本，直接用它。
 #
 # 用法:
-#   tools/openocd.sh flash [elf]        烧写（默认取 build/arm-debug 里最新的 elf）
+#   tools/openocd.sh flash [elf]        烧写（默认取 build/arm-debug-hw 里最新的 elf）
 #   tools/openocd.sh server             起 GDB server，端口 3333
 #   tools/openocd.sh gdb [elf]          reset halt 后进交互式 gdb
 #   tools/openocd.sh run <脚本.gdb> [elf]   跑一段 gdb 脚本（自起自停 server）
@@ -25,7 +25,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 latest_elf() {
-    ls -t build/arm-debug/smart_gas_monitor_*.elf | head -1
+    ls -t build/arm-debug-hw/smart_gas_monitor_*.elf | head -1
 }
 
 common=(-s "$SCRIPTS" -f interface/stlink.cfg -f target/stm32f1x.cfg)

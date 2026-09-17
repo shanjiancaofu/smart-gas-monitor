@@ -22,13 +22,6 @@
 
 /* USER CODE BEGIN 0 */
 
-/* 这两条 I2C 总线现在由 bsp_i2c.c 用 GPIO 翻转模拟，MX_I2C1_Init() /
- * MX_I2C2_Init() 已经从 main.c 里移除，下面的硬件初始化代码不再被调用——留着
- * 只是为了让 .ioc 和生成代码保持完整。
- *
- * 不要把它们加回 main.c：HAL_I2C_MspInit() 会把 PB6/PB7 和 PB10/PB11 配成复用
- * 开漏，从软件 I2C 手里抢走引脚，OLED 和存储会一起失效。 */
-
 /* USER CODE END 0 */
 
 I2C_HandleTypeDef hi2c1;
@@ -46,10 +39,6 @@ void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  /* 100 kHz，为迁就 Proteus 的 SSD1306 模型从 400 kHz 下调：速率越高它越接不住
-   * 初始化序列，而 bsp_oled_init() 一旦失败，oled.ready 就保持 false、
-   * display_update() 直接返回，屏幕上什么都不画。代价是整屏 1024 字节刷新变慢，
-   * 见 docs/changelog.md 里当初提速那一条。 */
   hi2c1.Init.ClockSpeed = 100000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
@@ -108,9 +97,6 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* i2cHandle)
   /* USER CODE END I2C1_MspInit 0 */
 
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    /* 用 I2C1 的默认引脚 PB6/PB7，不开重映射：Proteus 的 STM32 模型不认
-     * AFIO 重映射，开了之后仿真里 I2C1 仍停在默认引脚上，挂在重映射引脚上
-     * 的面板收不到任何字节。 */
     /**I2C1 GPIO Configuration
     PB6     ------> I2C1_SCL
     PB7     ------> I2C1_SDA
@@ -165,7 +151,9 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* i2cHandle)
     PB6     ------> I2C1_SCL
     PB7     ------> I2C1_SDA
     */
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6|GPIO_PIN_7);
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6);
+
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_7);
 
   /* USER CODE BEGIN I2C1_MspDeInit 1 */
 

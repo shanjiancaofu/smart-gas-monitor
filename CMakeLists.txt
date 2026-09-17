@@ -4,6 +4,13 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
+option(USE_SOFT_I2C "Use GPIO bit-bang I2C" OFF)
+if(USE_SOFT_I2C)
+  set(I2C_BACKEND "soft")
+else()
+  set(I2C_BACKEND "hw")
+endif()
+
 set(APP_ROOT "${CMAKE_SOURCE_DIR}/stm32f103")
 set(CUBEMX_ROOT "${APP_ROOT}")
 set(APP_SOURCES
@@ -61,8 +68,7 @@ file(GLOB OLD_FIRMWARE_ARTIFACTS
   "${CMAKE_BINARY_DIR}/smart_gas_monitor_*.bin"
   "${CMAKE_BINARY_DIR}/smart_gas_monitor_*.map")
 file(REMOVE ${OLD_FIRMWARE_ARTIFACTS})
-string(TIMESTAMP BUILD_TIMESTAMP "%Y%m%d_%H%M%S")
-set(FIRMWARE_BASENAME "smart_gas_monitor_${BUILD_TIMESTAMP}")
+set(FIRMWARE_BASENAME "smart_gas_monitor_gcc_${I2C_BACKEND}")
 add_executable(smart_gas_monitor ${APP_SOURCES} ${STARTUP})
 set_target_properties(smart_gas_monitor PROPERTIES
   OUTPUT_NAME "${FIRMWARE_BASENAME}"
@@ -74,13 +80,10 @@ target_include_directories(smart_gas_monitor PRIVATE
   ${CUBEMX_ROOT}/Drivers/CMSIS/Device/ST/STM32F1xx/Include
   ${CUBEMX_ROOT}/Drivers/CMSIS/Include
   ${APP_ROOT}/app ${APP_ROOT}/bsp)
-target_compile_definitions(smart_gas_monitor PRIVATE USE_HAL_DRIVER STM32F103xB)
+target_compile_definitions(smart_gas_monitor PRIVATE USE_HAL_DRIVER STM32F103xB USE_SOFT_I2C=$<BOOL:${USE_SOFT_I2C}>)
 target_compile_options(smart_gas_monitor PRIVATE -mcpu=cortex-m3 -mthumb -ffunction-sections -fdata-sections -Wall -Wextra -fstack-usage $<$<CONFIG:Debug>:-Og -g3> $<$<CONFIG:Release>:-Os -g3>)
 target_link_options(smart_gas_monitor PRIVATE -mcpu=cortex-m3 -mthumb --specs=nano.specs -T${CUBEMX_ROOT}/STM32F103xx_FLASH.ld -Wl,--gc-sections -Wl,-Map=${CMAKE_BINARY_DIR}/${FIRMWARE_BASENAME}.map)
 add_custom_command(TARGET smart_gas_monitor POST_BUILD
   COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:smart_gas_monitor> ${CMAKE_BINARY_DIR}/${FIRMWARE_BASENAME}.hex
   COMMAND ${CMAKE_OBJCOPY} -O binary -S $<TARGET_FILE:smart_gas_monitor> ${CMAKE_BINARY_DIR}/${FIRMWARE_BASENAME}.bin
   COMMAND ${CMAKE_SIZE} $<TARGET_FILE:smart_gas_monitor>)
-
-
-

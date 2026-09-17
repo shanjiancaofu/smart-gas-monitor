@@ -11,7 +11,7 @@ export PATH="$TOOLS.cmake.win32_1.1.200.202605190741/tools/bin:$PATH"
 export PATH="$TOOLS.ninja.win32_1.1.200.202606260906/tools/bin:$PATH"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PRESET="${1:-arm-debug}"
+PRESET="${1:-arm-debug-hw}"
 
 # --preset 是从当前目录找 CMakePresets.json 的，所以必须先回到仓库根。
 cd "$ROOT"

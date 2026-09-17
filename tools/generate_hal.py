@@ -1,8 +1,10 @@
-﻿"""Regenerate the checked-in HAL project with standalone STM32CubeMX."""
+"""Regenerate the checked-in HAL project with standalone STM32CubeMX."""
 import argparse
 import pathlib
 import re
 import subprocess
+
+from configure_keil_targets import configure as configure_keil_targets
 
 root = pathlib.Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
@@ -38,5 +40,5 @@ text = re.sub(r'(?m)^ProjectManager.CustomerFirmwarePackage=.*$',
 text = re.sub(r'(?m)^ProjectManager.DefaultFWLocation=.*$',
               'ProjectManager.DefaultFWLocation=true', text)
 ioc.write_text(text, encoding='utf-8')
+configure_keil_targets(project)
 print(f'PASS: HAL regenerated. Log: {log}')
-

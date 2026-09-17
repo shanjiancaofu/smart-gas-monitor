@@ -34,16 +34,18 @@ extern "C" {
 
 extern TIM_HandleTypeDef htim2;
 
+extern TIM_HandleTypeDef htim4;
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
 void MX_TIM2_Init(void);
+void MX_TIM4_Init(void);
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* USER CODE BEGIN Prototypes */
-/* TIM4 不在 .ioc 里，声明放在 USER CODE 段避免被 CubeMX 覆盖。理由见 tim.c。 */
-extern TIM_HandleTypeDef htim4;
-void MX_TIM4_Init(void);
 
 /* USER CODE END Prototypes */
 

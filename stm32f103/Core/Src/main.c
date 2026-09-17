@@ -93,17 +93,17 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_ADC1_Init();
+  MX_I2C1_Init();
+  MX_I2C2_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_TIM2_Init();
-  /* USER CODE BEGIN 2 */
-  /* MX_GPIO_Init() 里那句 HAL_GPIO_WritePin 把 BUZZER_Pin 也拉低了，那是按高
-   * 电平触发生成的。本项目的蜂鸣器低电平触发，所以上电到 alarm_init() 之间它会
-   * 一直响；这里先摆回空闲电平，别等 app_init()。 */
-  bsp_buzzer_set(false);
-  /* TIM4_CH3 驱动舵机阀门。它不在 .ioc 里，所以初始化调用也放在 USER CODE
-   * 段，理由见 tim.c：CubeMX 重新生成时不会把这一句删掉。 */
   MX_TIM4_Init();
+  /* USER CODE BEGIN 2 */
+  /* MX_GPIO_Init() 閲岄偅鍙?HAL_GPIO_WritePin 鎶?BUZZER_Pin 涔熸媺浣庝簡锛岄偅鏄寜楂?
+   * 鐢靛钩瑙﹀彂鐢熸垚鐨勩€傛湰椤圭洰鐨勮渹楦ｅ櫒浣庣數骞宠Е鍙戯紝鎵€浠ヤ笂鐢靛埌 alarm_init() 涔嬮棿瀹冧細
+   * 涓€鐩村搷锛涜繖閲屽厛鎽嗗洖绌洪棽鐢靛钩锛屽埆绛?app_init()銆?*/
+  bsp_buzzer_set(false);
   if (!app_init())
   {
     Error_Handler();
@@ -204,5 +204,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-
