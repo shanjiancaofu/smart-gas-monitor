@@ -6,6 +6,7 @@
 
 typedef struct {
     unsigned reads, writes, ready;
+    uint32_t ready_timeout; /* 最近一次 bsp_i2c_ready 的等待上限 */
     uint16_t offsets[4], sizes[4], address_bits[4];
 } fake_bus_t;
 
@@ -35,8 +36,11 @@ bool bsp_i2c_write(I2C_HandleTypeDef *bus, uint16_t address, uint16_t offset,
 bool bsp_i2c_ready(I2C_HandleTypeDef *bus, uint16_t address, uint32_t timeout)
 {
     fake_bus_t *fake = (fake_bus_t *)bus;
-    (void)address; (void)timeout;
+    (void)address;
     ++fake->ready;
+    /* 记下来给断言用：这个参数曾经被 (void) 掉、只探测一次，于是 EEPROM 写完
+     * 一个页还在忙（24C64 最长 5 ms）时被错判成写失败。 */
+    fake->ready_timeout = timeout;
     return true;
 }
 
@@ -52,6 +56,9 @@ int main(void)
     assert(fake.reads == 1 && fake.address_bits[0] == EEPROM_ADDRESS_BITS);
     assert(bsp_eeprom_write(&eeprom, start, data, sizeof(data)));
     assert(fake.writes == 2 && fake.ready == 2);
+    /* 写完之后必须留足等器件结束内部写周期的时间，不能退化成"探一次就判失败"。 */
+    assert(fake.ready_timeout >= EEPROM_WRITE_TIMEOUT_MS);
+    assert(fake.ready_timeout >= 5u);
     assert(fake.offsets[0] == start && fake.sizes[0] == 2);
     assert(fake.offsets[1] == start + 2u && fake.sizes[1] == 3);
     assert(fake.address_bits[0] == EEPROM_ADDRESS_BITS &&
