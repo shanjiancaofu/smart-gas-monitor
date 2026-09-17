@@ -26,9 +26,9 @@ int main(void)
 
     gas_init(&gas, NULL, 0);
     alarm_init(&alarm);
-    /* 异常安全策略与 FAULT 一致：阀门关、风扇开、蜂鸣器静默。
-     * 原来这里是 !relay，照「普通上电」写的，和状态机里的 FAULT 定义冲突。 */
-    assert(relay && !buzzer && !valve_led);
+    /* 正常上电：全部不动作，风扇也不转。排风是 FAULT/ALARM 才有的行为，
+     * alarm_force_safe() 那条路径才开风扇，两者不能混。 */
+    assert(!relay && !buzzer && !valve_led);
     alarm_update(&alarm, &gas, 0);
     assert(!relay && !servo_open && !valve_led && !buzzer);
     gas.config.lockout = true;

@@ -25,7 +25,18 @@ void alarm_init(alarm_t *alarm)
     alarm->active = false;
     alarm->started_tick = 0;
     alarm->alarm_mask = 0;
-    alarm_force_safe();
+
+    /* 正常上电：所有输出置为不动作。**这里刻意不调 alarm_force_safe()**——
+     * 那个是给 HardFault / Error_Handler 的，它会把排风扇打开。
+     *
+     * 两者的区别是「真出了异常」和「还没轮到判断」：上电时状态机连第一轮都
+     * 还没跑，没有理由排风；而 alarm_init() 之后才初始化 OLED、扫 EEPROM，
+     * 软件 I2C 下这段有几百毫秒，让风扇先空转一阵既没道理，也和 WARMUP 的
+     * 「阀门关、不排风」定义冲突。 */
+    bsp_fan_set(false);
+    bsp_buzzer_set(false);
+    bsp_led_valve(false);
+    bsp_servo_set(false);
     bsp_led_set(false, false, false, false);
 }
 
