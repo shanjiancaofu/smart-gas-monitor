@@ -24,7 +24,7 @@ typedef enum {
 typedef struct {
     uint32_t edge_ms[KEY_COUNT];
     uint8_t pending; /* 正在消抖窗口里的按键 */
-    uint8_t held;    /* 最近一次读到的电平，KEY5 靠它发现按下，调试时也看得见 */
+    uint8_t held;    /* 最近一次读到的电平，调试时看得见 */
 } bsp_key_t;
 
 void bsp_key_init(bsp_key_t *keys);

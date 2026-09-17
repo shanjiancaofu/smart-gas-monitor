@@ -12,9 +12,8 @@ _Static_assert(KEY1_Pin != KEY2_Pin && KEY1_Pin != KEY3_Pin && KEY1_Pin != KEY4_
                "every key needs its own pin: EXTI lines are shared by pin number");
 #endif
 
-/* KEY1～KEY4 走 EXTI 下降沿，KEY5 是上拉轮询。位图的位序就是 KEY1..KEY5，
- * 所以前四位是「有 EXTI 的键」，最后一位不是。 */
-#define KEY_EXTI_MASK 0x0fu
+/* 五个键全部走 EXTI 下降沿。位图的位序就是 KEY1..KEY5。 */
+#define KEY_EXTI_MASK 0x1fu
 
 typedef struct {
     GPIO_TypeDef *port;
@@ -43,9 +42,35 @@ static uint8_t bsp_key_bits(void)
 
 void bsp_key_init(bsp_key_t *keys)
 {
+    GPIO_InitTypeDef gpio = {0};
+
     memset(keys, 0, sizeof(*keys));
     keys->held = bsp_key_bits();
+
+    /* KEY5 从"上拉轮询"改成 EXTI5，五个键统一成"边沿记录 + 时间消抖"。
+     *
+     * 轮询在这个系统里会丢按键：软件 I2C 一次整屏刷新要阻塞几百毫秒，这段时间
+     * 主循环根本轮不到，短按完全看不到。EXTI 由中断记下边沿，主循环什么时候
+     * 回来处理都算数。
+     *
+     * 配置放在这里而不是 MX_GPIO_Init()：那边是 CubeMX 生成区，改了下一次生成
+     * 就没了。PB5 的 GPIO 时钟已由 MX_GPIO_Init 使能，这里只改模式。 */
+    gpio.Pin = KEY5_Pin;
+    gpio.Mode = GPIO_MODE_IT_FALLING;
+    gpio.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(KEY5_GPIO_Port, &gpio);
+    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 1);
+    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
     exti_pending = 0;
+}
+
+/* EXTI5～9 共用一个向量，这里只有 KEY5 挂在这条线上。
+ * 写在本文件而不是 stm32f1xx_it.c：那里是生成区，而且这个符号在启动文件里是
+ * 弱定义，任何地方提供强定义都能顶掉它。 */
+void EXTI9_5_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(KEY5_Pin);
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
