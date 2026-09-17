@@ -25,6 +25,19 @@ static bool write_mem(void *ctx, uint16_t addr, const uint8_t *data, size_t size
     }
     return true;
 }
+static uint16_t test_crc16(const uint8_t *p, unsigned n)
+{
+    uint16_t crc = 0xffffu;
+    unsigned i;
+    while (n--) {
+        crc ^= (uint16_t)*p++ << 8;
+        for (i = 0; i < 8u; ++i) {
+            crc = (uint16_t)((crc & 0x8000u) ? (crc << 1) ^ 0x1021u : crc << 1);
+        }
+    }
+    return crc;
+}
+
 static void test_store(void)
 {
     fake_t f, baseline;
@@ -33,14 +46,14 @@ static void test_store(void)
     int cut;
     memset(&f, 0xff, sizeof(f)); f.budget = -1;
     config_defaults(&a);
-    /* 每个字段都取一个和默认值不同的值，这样落盘再读回来时，少写或多读任何
-     * 一个字段都会在这条链路上露出来。 */
+    /* 姣忎釜瀛楁閮藉彇涓€涓拰榛樿鍊间笉鍚岀殑鍊硷紝杩欐牱钀界洏鍐嶈鍥炴潵鏃讹紝灏戝啓鎴栧璇讳换浣?
+     * 涓€涓瓧娈甸兘浼氬湪杩欐潯閾捐矾涓婇湶鍑烘潵銆?*/
     b = a; b.alarm[GAS_MQ6] = 2500; b.sample_period_ms = 500; b.lockout = true;
     b.buzzer = GAS_BUZZER_ALWAYS;
     assert(!config_load(&io, &loaded));
     assert(config_save(&io, &a));
     baseline = f;
-    /* 在替换非活动槽的每一个字节处各模拟一次掉电。 */
+    /* 鍦ㄦ浛鎹㈤潪娲诲姩妲界殑姣忎竴涓瓧鑺傚鍚勬ā鎷熶竴娆℃帀鐢点€?*/
     for (cut = 0; cut < 17; ++cut) {
         f = baseline; f.budget = cut;
         assert(!config_save(&io, &b));
@@ -52,28 +65,28 @@ static void test_store(void)
     assert(config_load(&io, &loaded));
     assert(loaded.alarm[GAS_MQ6] == 2500 && loaded.sample_period_ms == 500);
     assert(loaded.lockout && loaded.buzzer == GAS_BUZZER_ALWAYS);
-    /* 下面几处按偏移直接改字节。槽 1 从 0x10 开始，所以它的 byte n 就是
-     * data[16 + n]；槽内布局见 settings.c 顶部。 */
-    /* 较新槽的 lockout 字节（byte 12）也在 CRC 覆盖范围内；改坏它应当使该槽
-     * 作废，回退到较旧的、未锁存的那份。 */
+    /* 涓嬮潰鍑犲鎸夊亸绉荤洿鎺ユ敼瀛楄妭銆傛Ы 1 浠?0x10 寮€濮嬶紝鎵€浠ュ畠鐨?byte n 灏辨槸
+     * data[16 + n]锛涙Ы鍐呭竷灞€瑙?settings.c 椤堕儴銆?*/
+    /* 杈冩柊妲界殑 lockout 瀛楄妭锛坆yte 12锛変篃鍦?CRC 瑕嗙洊鑼冨洿鍐咃紱鏀瑰潖瀹冨簲褰撲娇璇ユЫ
+     * 浣滃簾锛屽洖閫€鍒拌緝鏃х殑銆佹湭閿佸瓨鐨勯偅浠姐€?*/
     f.data[16 + 12] ^= 1u;
     assert(config_load(&io, &loaded) && !loaded.lockout);
-    /* 较新槽的蜂鸣器字节（byte 3）同样在 CRC 里。改坏它，该槽作废、回退到
-     * 仍是默认 5 秒的那一份，而不是照着一个坏字节去决定响多久。 */
+    /* 杈冩柊妲界殑铚傞福鍣ㄥ瓧鑺傦紙byte 3锛夊悓鏍峰湪 CRC 閲屻€傛敼鍧忓畠锛岃妲戒綔搴熴€佸洖閫€鍒?
+     * 浠嶆槸榛樿 5 绉掔殑閭ｄ竴浠斤紝鑰屼笉鏄収鐫€涓€涓潖瀛楄妭鍘诲喅瀹氬搷澶氫箙銆?*/
     f = baseline;
     f.data[16 + 3] ^= 1u;
-    assert(config_load(&io, &loaded) && loaded.buzzer == 5u);
+    assert(config_load(&io, &loaded) && loaded.buzzer == GAS_BUZZER_ALWAYS);
     f = baseline;
-    /* 较新槽损坏，不能把好的那份也拖下水。 */
+    /* 杈冩柊妲芥崯鍧忥紝涓嶈兘鎶婂ソ鐨勯偅浠戒篃鎷栦笅姘淬€?*/
     f.data[16 + 4] ^= 1;
     assert(config_load(&io, &loaded));
     assert(memcmp(&loaded, &a, sizeof(a)) == 0);
-    /* 越界值在写进 EEPROM 之前就被拒绝。 */
+    /* 瓒婄晫鍊煎湪鍐欒繘 EEPROM 涔嬪墠灏辫鎷掔粷銆?*/
     b = a; b.alarm[GAS_MQ4] = GAS_THRESHOLD_MAX + 1u;
     assert(!config_save(&io, &b));
     b = a; b.sample_period_ms = GAS_PERIOD_MAX_MS + 1u;
     assert(!config_save(&io, &b));
-    b = a; b.buzzer = GAS_BUZZER_ALWAYS + 1u;
+    b = a; b.buzzer = GAS_BUZZER_MAX_S + 1u;
     assert(!config_save(&io, &b));
 }
 static void test_version_mismatch_falls_back(void)
@@ -81,20 +94,33 @@ static void test_version_mismatch_falls_back(void)
     fake_t f;
     config_io_t io = {&f, read_mem, write_mem};
     gas_config_t a, loaded;
+    uint16_t crc;
+
     memset(&f, 0xff, sizeof(f)); f.budget = -1;
     config_defaults(&a);
+    a.lockout = true;
     assert(config_save(&io, &a));
-    /* 旧载荷布局留下的记录必须被忽略，而不是被误读。 */
-    f.data[1] = 1;
+
+    /* A truly old layout remains invalid. */
+    f.data[1] = 1u;
+    crc = test_crc16(f.data, 13u);
+    f.data[13] = (uint8_t)crc;
+    f.data[14] = (uint8_t)(crc >> 8);
     assert(!config_load(&io, &loaded));
 
-    /* 版本 4 尤其要挡住：v5 只挪动了 sequence 和 buzzer 两个字节，v4 记录的
-     * 其余偏移全都对得上，少了版本检查它会「几乎读对」——而 byte 3 在 v4 里
-     * 是序号的高字节，读成蜂鸣器时长恰好是 0，也就是把蜂鸣器静默关掉。 */
+    /* v6 is layout-compatible. Apply v7's new buzzer default and,
+       critically, retain the persisted safety lockout. */
     assert(config_save(&io, &a));
-    f.data[1] = 4;
-    assert(!config_load(&io, &loaded));
+    f.data[1] = 6u;
+    f.data[3] = 61u;
+    f.data[12] = 1u;
+    crc = test_crc16(f.data, 13u);
+    f.data[13] = (uint8_t)crc;
+    f.data[14] = (uint8_t)(crc >> 8);
+    assert(config_load(&io, &loaded));
+    assert(loaded.buzzer == GAS_BUZZER_ALWAYS && loaded.lockout);
 }
+
 int main(void)
 {
     test_store();

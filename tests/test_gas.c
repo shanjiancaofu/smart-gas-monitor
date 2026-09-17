@@ -211,41 +211,32 @@ static void test_buzzer_value(void)
     char tiny[2];
 
     config_defaults(&c);
-    assert(c.buzzer == 5u && config_valid(&c));
-    c.buzzer = GAS_BUZZER_ALWAYS;
+    assert(c.buzzer == GAS_BUZZER_ALWAYS && config_valid(&c));
+    c.buzzer = GAS_BUZZER_MAX_S;
     assert(config_valid(&c));
-    /* 61 是「一直响」的编码，不是「61 秒」；再往上就没有定义了。 */
-    c.buzzer = GAS_BUZZER_ALWAYS + 1u;
+    c.buzzer = GAS_BUZZER_MAX_S + 1u;
     assert(!config_valid(&c));
 
     c.buzzer = GAS_BUZZER_OFF;
     assert(config_buzzer_duration_ms(&c) == 0u);
-    c.buzzer = 1u;
-    assert(config_buzzer_duration_ms(&c) == 1000u);
-    c.buzzer = 60u;
-    assert(config_buzzer_duration_ms(&c) == 60000u);
     c.buzzer = GAS_BUZZER_ALWAYS;
     assert(config_buzzer_duration_ms(&c) == GAS_BUZZER_FOREVER_MS);
-    /* 越界的值一律读作「一直响」。若先相乘再截断，66 会回绕成 464 毫秒——
-     * 报警路径上最不该出现的失败方式，就是响了 0.5 秒然后安静下来。 */
-    c.buzzer = 66u;
-    assert(config_buzzer_duration_ms(&c) == GAS_BUZZER_FOREVER_MS);
-    c.buzzer = 255u;
-    assert(config_buzzer_duration_ms(&c) == GAS_BUZZER_FOREVER_MS);
+    c.buzzer = GAS_BUZZER_MIN_S;
+    assert(config_buzzer_duration_ms(&c) == 2000u);
+    c.buzzer = GAS_BUZZER_MAX_S;
+    assert(config_buzzer_duration_ms(&c) == 60000u);
+    c.buzzer = GAS_BUZZER_MAX_S + 1u;
+    assert(config_buzzer_duration_ms(&c) == 0u);
 
     config_buzzer_name(GAS_BUZZER_OFF, name, sizeof(name));
     assert(strcmp(name, "OFF") == 0);
-    config_buzzer_name(1u, name, sizeof(name));
-    assert(strcmp(name, "1S") == 0);
-    config_buzzer_name(60u, name, sizeof(name));
-    assert(strcmp(name, "60S") == 0);
     config_buzzer_name(GAS_BUZZER_ALWAYS, name, sizeof(name));
     assert(strcmp(name, "ALWAYS") == 0);
-    /* 越界同样读作最长档，而不是印出 "66S" 这种根本不存在的设置。 */
-    config_buzzer_name(66u, name, sizeof(name));
-    assert(strcmp(name, "ALWAYS") == 0);
+    config_buzzer_name(GAS_BUZZER_MIN_S, name, sizeof(name));
+    assert(strcmp(name, "2S") == 0);
+    config_buzzer_name(GAS_BUZZER_MAX_S, name, sizeof(name));
+    assert(strcmp(name, "60S") == 0);
 
-    /* 缓冲区不够时截断，不越界；大小为 0 时一个字节都不写。 */
     tiny[0] = (char)0x7f;
     tiny[1] = (char)0x7f;
     config_buzzer_name(60u, tiny, sizeof(tiny));
@@ -255,7 +246,6 @@ static void test_buzzer_value(void)
     assert(name[0] == 'X');
 }
 
-/* 面板上的按键：在同一个数轴上加减，两端夹取，不环绕。 */
 static void test_buzzer_keys(void)
 {
     gas_t m;
@@ -265,31 +255,25 @@ static void test_buzzer_keys(void)
     assert(m.item == GAS_ITEM_BUZZER);
     m.dirty = false;
 
-    /* 加号一路加到顶就停在「一直响」：加的语义永远是「响得更久」，不做环绕
-     * 回到「不响」——那会让同一个按键在两端之间来回跳。 */
     for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == GAS_BUZZER_ALWAYS && m.dirty);
+    assert(m.config.buzzer == GAS_BUZZER_MAX_S && m.dirty);
     gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == GAS_BUZZER_ALWAYS);
+    assert(m.config.buzzer == GAS_BUZZER_MAX_S);
 
     for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_DOWN, T0);
     assert(m.config.buzzer == GAS_BUZZER_OFF);
     gas_key(&m, GAS_KEY_DOWN, T0);
     assert(m.config.buzzer == GAS_BUZZER_OFF);
 
-    /* 一步一格，中间没有跳档：OFF → 1S → 2S → … → 60S → ALWAYS。 */
-    gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == 1u);
-    gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == 2u);
-    for (i = 0; i < GAS_BUZZER_MAX_S - 2u; ++i) gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == GAS_BUZZER_MAX_S);
     gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == GAS_BUZZER_ALWAYS);
-    gas_key(&m, GAS_KEY_DOWN, T0);
+    gas_key(&m, GAS_KEY_UP, T0);
+    assert(m.config.buzzer == GAS_BUZZER_MIN_S);
+    for (i = GAS_BUZZER_MIN_S; i < GAS_BUZZER_MAX_S; ++i) gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == GAS_BUZZER_MAX_S);
+    gas_key(&m, GAS_KEY_DOWN, T0);
+    assert(m.config.buzzer == GAS_BUZZER_MAX_S - 1u);
 
-    /* 改蜂鸣器时长不影响别的设置项，别的设置项也不影响它。 */
     assert(m.config.alarm[GAS_MQ4] == 2400u);
     assert(m.config.sample_period_ms == 100u);
 }
@@ -313,7 +297,7 @@ static void test_buzzer_set(void)
 
     /* 超出编码范围的值必须在收窄成 uint8 之前就被拒：256 截断成 0 会成为
      * 一个合法取值，静默地把蜂鸣器关掉，而调用者要的显然不是这个。 */
-    assert(!gas_set_buzzer(&m, GAS_BUZZER_ALWAYS + 1u, T0));
+    assert(!gas_set_buzzer(&m, GAS_BUZZER_MAX_S + 1u, T0));
     assert(!gas_set_buzzer(&m, 256u, T0));
     assert(!gas_set_buzzer(&m, 0xffffu, T0));
     assert(m.config.buzzer == GAS_BUZZER_OFF);

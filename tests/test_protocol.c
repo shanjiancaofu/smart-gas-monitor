@@ -1,4 +1,4 @@
-﻿#include "protocol/protocol.h"
+#include "protocol/protocol.h"
 #include "gas/gas.h"
 #include "history/history.h"
 #include <assert.h>
@@ -82,7 +82,7 @@ static void test_queries(void)
                        "MQ4=500/2400 MQ6=500/2400 MQ7=500/2400") == 0);
 
     command(&p, "CONFIG?", (T0 + 100u), out, sizeof(out));
-    assert(strcmp(out, "TH MQ4=2400 MQ6=2400 MQ7=2400 PERIOD=100 BUZZ=5S") == 0);
+    assert(strcmp(out, "TH MQ4=2400 MQ6=2400 MQ7=2400 PERIOD=100 BUZZ=ALWAYS") == 0);
 
 
     command(&p, "HISTORY?", (T0 + 100u), out, sizeof(out));
@@ -159,9 +159,9 @@ static void test_set(void)
 
     command(&p, "SET BUZZER 60", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=60S") == 0 && m.config.buzzer == 60u);
-    command(&p, "SET BUZZER 61", (T0 + 100u), out, sizeof(out));
+    command(&p, "SET BUZZER 1", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=ALWAYS") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
-    command(&p, "SET BUZZER 62", (T0 + 100u), out, sizeof(out));
+    command(&p, "SET BUZZER 61", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
 
     command(&p, "SET BUZZER 256", (T0 + 100u), out, sizeof(out));

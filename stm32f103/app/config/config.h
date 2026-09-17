@@ -54,8 +54,9 @@
 
 /* Comment normalized for portability. */
 #define GAS_BUZZER_OFF 0u
+#define GAS_BUZZER_ALWAYS 1u
+#define GAS_BUZZER_MIN_S 2u
 #define GAS_BUZZER_MAX_S 60u
-#define GAS_BUZZER_ALWAYS (GAS_BUZZER_MAX_S + 1u)
 /* Comment normalized for portability. */
 #define GAS_BUZZER_FOREVER_MS 0xffffu
 /* Comment normalized for portability. */
@@ -67,7 +68,7 @@ _Static_assert(GAS_BUZZER_MAX_S * 1000u < GAS_BUZZER_FOREVER_MS,
 typedef struct {
     uint16_t alarm[GAS_COUNT];
     uint16_t sample_period_ms;
-    /* GAS_BUZZER_OFF, 1..GAS_BUZZER_MAX_S seconds, or GAS_BUZZER_ALWAYS. */
+    /* 0=OFF, 1=ALWAYS, 2..60=maximum alarm duration in seconds. */
     uint8_t buzzer;
     bool lockout;
 } gas_config_t;

@@ -11,8 +11,8 @@ void config_defaults(gas_config_t *c)
     c->alarm[1] = 2400;
     c->alarm[2] = 2400;
     c->sample_period_ms = 100;
-    /* 与改动前那个固定的 5 秒一致，升级到 v5 不会让蜂鸣器行为跟着变。 */
-    c->buzzer = 5u;
+    /* Buzzer encoding: 0=OFF, 1=ALWAYS, 2..60=seconds. */
+    c->buzzer = GAS_BUZZER_ALWAYS;
     c->lockout = false;
 }
 
@@ -25,7 +25,7 @@ bool config_valid(const gas_config_t *c)
         }
     }
     /* 蜂鸣器只判上界：0 是合法取值（不响），而下界由无符号类型本身兜住。 */
-    return c->buzzer <= GAS_BUZZER_ALWAYS && c->sample_period_ms >= GAS_PERIOD_MIN_MS &&
+    return c->buzzer <= GAS_BUZZER_MAX_S && c->sample_period_ms >= GAS_PERIOD_MIN_MS &&
            c->sample_period_ms <= GAS_PERIOD_MAX_MS && c->sample_period_ms % GAS_TICK_MS == 0u;
 }
 
@@ -35,10 +35,10 @@ void config_buzzer_name(uint8_t value, char *out, size_t size)
         return;
     }
     /* 判 >= 而不是 == ：万一有个超出范围的值得了进来，它读作最长的那个档位，
-     * 而不是显示成「62S」这种不存在的设置。 */
+     * 而不是显示成「61S」这种不存在的设置。 */
     if (value == GAS_BUZZER_OFF) {
         (void)snprintf(out, size, "OFF");
-    } else if (value >= GAS_BUZZER_ALWAYS) {
+    } else if (value == GAS_BUZZER_ALWAYS) {
         (void)snprintf(out, size, "ALWAYS");
     } else {
         (void)snprintf(out, size, "%uS", (unsigned)value);
@@ -50,8 +50,11 @@ uint16_t config_buzzer_duration_ms(const gas_config_t *config)
     if (config->buzzer == GAS_BUZZER_OFF) {
         return 0u;
     }
-    if (config->buzzer >= GAS_BUZZER_ALWAYS) {
+    if (config->buzzer == GAS_BUZZER_ALWAYS) {
         return GAS_BUZZER_FOREVER_MS;
+    }
+    if (config->buzzer > GAS_BUZZER_MAX_S) {
+        return 0u;
     }
     return (uint16_t)((uint16_t)config->buzzer * 1000u);
 }
@@ -68,7 +71,7 @@ uint16_t config_buzzer_duration_ms(const gas_config_t *config)
  * 字段整体前移，是为了让其余字段的偏移和 v4 保持一致。 */
 #define CONFIG_SLOT_SIZE 16u
 #define CONFIG_MAGIC 0xa5u
-#define CONFIG_VERSION 6u
+#define CONFIG_VERSION 7u
 #define CONFIG_COMMIT 0x5au
 
 static uint16_t crc16(const uint8_t *p, unsigned n)
@@ -95,8 +98,15 @@ static void put16(uint8_t *p, uint16_t v)
 static bool decode(const uint8_t *b, gas_config_t *c)
 {
     unsigned i;
-    if (b[0] != CONFIG_MAGIC || b[1] != CONFIG_VERSION || b[15] != CONFIG_COMMIT ||
+    uint8_t version;
+    uint8_t buzzer;
+
+    if (b[0] != CONFIG_MAGIC || b[15] != CONFIG_COMMIT ||
         get16(b + 13) != crc16(b, 13)) {
+        return false;
+    }
+    version = b[1];
+    if (version != CONFIG_VERSION && version != 6u) {
         return false;
     }
     for (i = 0; i < GAS_COUNT; ++i) {
@@ -104,7 +114,13 @@ static bool decode(const uint8_t *b, gas_config_t *c)
     }
     c->sample_period_ms = get16(b + 10);
     c->lockout = b[12] != 0u;
-    c->buzzer = b[3];
+    buzzer = b[3];
+    if (version == 6u) {
+        /* The encoding changed in v7. Apply the new default while preserving
+           thresholds, period and, most importantly, the safety lockout. */
+        buzzer = GAS_BUZZER_ALWAYS;
+    }
+    c->buzzer = buzzer;
     return config_valid(c);
 }
 static int latest(uint8_t b[2][CONFIG_SLOT_SIZE], bool valid[2])

@@ -50,7 +50,7 @@ static bool buzzer_step(uint8_t *value, bool up)
 {
     uint8_t old = *value;
     if (up) {
-        if (*value < GAS_BUZZER_ALWAYS) {
+        if (*value < GAS_BUZZER_MAX_S) {
             *value = (uint8_t)(*value + 1u);
         }
     } else {
@@ -357,7 +357,7 @@ bool gas_set_buzzer(gas_t *m, uint16_t value, uint32_t now)
     gas_config_t candidate = m->config;
     /* 先判上界再收窄：256 截断成 0 会被 config_valid() 放行，静默变成
      * 「不响」，那是个安全的取值，但绝不是调用者要的那个。 */
-    if (value > GAS_BUZZER_ALWAYS) {
+    if (value > GAS_BUZZER_MAX_S) {
         return false;
     }
     candidate.buzzer = (uint8_t)value;
