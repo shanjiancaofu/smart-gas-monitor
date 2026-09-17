@@ -6,7 +6,15 @@
 
 void alarm_force_safe(void)
 {
-    bsp_fan_set(false);
+    /* 和 alarm_update() 里的异常策略保持一致：阀门关、**风扇开**、阀门灯灭。
+     *
+     * 原来是风扇关——那是照「普通上电」写的，跟 FAULT 的定义冲突：状态机里
+     * FAULT/ALARM/SAFE_WAIT 都是 风扇 ON + 阀门 CLOSED，而故障处理程序反而
+     * 把风扇也停了。异常时排风要继续，否则故障处理程序自己违反了安全策略。
+     *
+     * 蜂鸣器仍然静默：故障处理程序里不再有主循环去驱动报警节奏，留着响会变成
+     * 一直长鸣。 */
+    bsp_fan_set(true);
     bsp_buzzer_set(false);
     bsp_led_valve(false);
     bsp_servo_set(false);

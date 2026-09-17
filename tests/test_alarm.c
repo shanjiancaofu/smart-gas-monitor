@@ -26,7 +26,9 @@ int main(void)
 
     gas_init(&gas, NULL, 0);
     alarm_init(&alarm);
-    assert(!relay && !buzzer && !valve_led);
+    /* 异常安全策略与 FAULT 一致：阀门关、风扇开、蜂鸣器静默。
+     * 原来这里是 !relay，照「普通上电」写的，和状态机里的 FAULT 定义冲突。 */
+    assert(relay && !buzzer && !valve_led);
     alarm_update(&alarm, &gas, 0);
     assert(!relay && !servo_open && !valve_led && !buzzer);
     gas.config.lockout = true;
@@ -77,7 +79,7 @@ int main(void)
     alarm_update(&alarm, &gas, 1001u + 128u * 1000u);
     assert(buzzer);
     alarm_force_safe();
-    assert(!relay && !buzzer && !valve_led);
+    assert(relay && !buzzer && !valve_led);
     puts("PASS: alarm output mapping/timer/wraparound/off/always/safe");
     return 0;
 }
