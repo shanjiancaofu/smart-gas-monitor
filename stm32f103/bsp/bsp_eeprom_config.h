@@ -4,6 +4,11 @@
 #ifndef EEPROM_MODEL
 #define EEPROM_MODEL 64
 #endif
+/* 写完一个页之后等器件结束内部写周期，单位毫秒。AT24C64/24C02 都是最大 5 ms，
+ * Proteus 的 I2CMEM 模型给的是 6 ms，取 10 留一倍余量。这个值直接决定
+ * bsp_i2c_ready() 重试多久，给小了会把「器件忙」当成「器件不在」。 */
+#define EEPROM_WRITE_TIMEOUT_MS 10u
+
 #if EEPROM_MODEL == 64
 #define EEPROM_CAPACITY 8192u
 #define EEPROM_PAGE_SIZE 32u

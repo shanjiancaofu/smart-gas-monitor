@@ -251,11 +251,26 @@ bool bsp_i2c_read(I2C_HandleTypeDef *bus_handle, uint16_t address, uint16_t offs
 bool bsp_i2c_ready(I2C_HandleTypeDef *bus_handle, uint16_t address, uint32_t timeout)
 {
     const soft_bus_t *bus = bus_of(bus_handle);
-    bool ack;
+    uint32_t waited;
 
-    (void)timeout;
-    i2c_start(bus);
-    ack = i2c_write_byte(bus, (uint8_t)address);
-    i2c_stop(bus);
-    return ack;
+    /* 探测器件在不在，timeout 单位是毫秒。
+     *
+     * 必须真的重试：EEPROM 写完一个页之后会忙 TD_WRITE 时间（24C64 典型 5 ms、
+     * Proteus 模型 6 ms）才重新应答。写完之后立刻探一次、NACK 就当失败，是
+     * 把「器件正在忙」误判成「器件不在」——表现就是参数存不住、历史一直是
+     * 0/510，而 OLED 因为从不走这条路径照常显示，屏幕正常反而掩盖了它。 */
+    for (waited = 0u;; ++waited) {
+        bool ack;
+
+        i2c_start(bus);
+        ack = i2c_write_byte(bus, (uint8_t)address);
+        i2c_stop(bus);
+        if (ack) {
+            return true;
+        }
+        if (waited >= timeout) {
+            return false;
+        }
+        HAL_Delay(1);
+    }
 }

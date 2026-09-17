@@ -31,7 +31,7 @@ bool bsp_eeprom_write(void *context, uint16_t offset, const uint8_t *data, size_
         }
         if (!bsp_i2c_write(eeprom->i2c, eeprom->address, offset, EEPROM_ADDRESS_BITS, data,
                            (uint16_t)count, 10) ||
-            !bsp_i2c_ready(eeprom->i2c, eeprom->address, 1)) {
+            !bsp_i2c_ready(eeprom->i2c, eeprom->address, EEPROM_WRITE_TIMEOUT_MS)) {
             return false;
         }
         offset = (uint16_t)(offset + count);
