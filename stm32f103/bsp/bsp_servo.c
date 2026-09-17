@@ -1,14 +1,14 @@
-﻿#include "bsp_servo.h"
+#include "bsp_servo.h"
 #include "tim.h"
 
 #ifndef USE_SOFT_I2C
 #define USE_SOFT_I2C 0
 #endif
 
-#define SERVO_CLOSE_US 500u
-#define SERVO_OPEN_US 2500u
-
 #if USE_SOFT_I2C
+/* The Proteus MOTOR-PWMSERVO in this project is configured for 1..2 ms. */
+#define SERVO_CLOSE_US 1000u
+#define SERVO_OPEN_US 2000u
 static volatile uint16_t requested_pulse_us = SERVO_CLOSE_US;
 
 bool bsp_servo_init(void)
@@ -63,6 +63,10 @@ void TIM4_IRQHandler(void)
     }
 }
 #else
+/* Physical servo full travel, matching the verified reference implementation. */
+#define SERVO_CLOSE_US 500u
+#define SERVO_OPEN_US 2500u
+
 bool bsp_servo_init(void)
 {
     __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, SERVO_CLOSE_US);
