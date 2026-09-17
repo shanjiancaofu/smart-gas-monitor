@@ -12,9 +12,6 @@ _Static_assert(KEY1_Pin != KEY2_Pin && KEY1_Pin != KEY3_Pin && KEY1_Pin != KEY4_
                "every key needs its own pin: EXTI lines are shared by pin number");
 #endif
 
-/* 五个键全部走 EXTI 下降沿。位图的位序就是 KEY1..KEY5。 */
-#define KEY_EXTI_MASK 0x1fu
-
 typedef struct {
     GPIO_TypeDef *port;
     uint16_t pin;
@@ -98,27 +95,19 @@ static uint8_t bsp_key_take_edges(void)
 
 uint8_t bsp_key_poll(bsp_key_t *keys, uint32_t now)
 {
-    uint8_t raw = bsp_key_bits();
     uint8_t edges = bsp_key_take_edges();
     uint8_t events = 0u;
     unsigned i;
 
+    /* 只为了调试看得见引脚电平，逻辑不依赖它。 */
+    keys->held = bsp_key_bits();
     for (i = 0; i < KEY_COUNT; ++i) {
         uint8_t mask = (uint8_t)(1u << i);
-        bool pressed = (raw & mask) != 0u;
-        bool start;
 
-        if ((KEY_EXTI_MASK & mask) != 0u) {
-            /* 有 EXTI 的键：下降沿就是权威触发源。它记在中断里，主循环什么时候
-             * 回来处理都算数，不要求那一刻按键还按着。 */
-            start = (edges & mask) != 0u;
-        } else {
-            /* KEY5 没有 EXTI，只能靠轮询发现按下的那一瞬。 */
-            start = pressed && (keys->held & mask) == 0u;
-        }
-        keys->held = (uint8_t)((keys->held & (uint8_t)~mask) | (pressed ? mask : 0u));
-
-        if (start) {
+        /* 下降沿由 EXTI 记在中断里，主循环什么时候回来处理都算数——软件 I2C
+         * 一次整屏刷新会阻塞几百毫秒，轮询在这段时间里完全看不到按键，短按
+         * 会整段丢掉。 */
+        if (edges & mask) {
             keys->edge_ms[i] = now;
             keys->pending |= mask;
         }
