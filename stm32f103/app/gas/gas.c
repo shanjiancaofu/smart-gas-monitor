@@ -170,7 +170,7 @@ uint16_t gas_safe_threshold(uint16_t alarm)
 }
 uint32_t gas_sample_timeout_ms(const gas_t *m)
 {
-    return (uint32_t)m->config.sample_period_ms * GAS_SAMPLE_TIMEOUT_PERIODS;
+    return (uint32_t)m->config.sample_period_ms + GAS_SAMPLE_TIMEOUT_MARGIN_MS;
 }
 void gas_init(gas_t *m, const gas_config_t *c, uint32_t now)
 {

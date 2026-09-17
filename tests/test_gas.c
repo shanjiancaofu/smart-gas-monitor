@@ -192,11 +192,11 @@ static void test_sample_period(void)
     assert(m.item == GAS_ITEM_PERIOD);
     gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.sample_period_ms == 200 && m.dirty);
-    assert(gas_sample_timeout_ms(&m) == 200u * GAS_SAMPLE_TIMEOUT_PERIODS);
+    assert(gas_sample_timeout_ms(&m) == 200u + GAS_SAMPLE_TIMEOUT_MARGIN_MS);
     /* 停顿判定的窗口跟着配置的采样周期走，不是一个固定常数。 */
     for (t = (T0 + 100u); t <= (T0 + 3900u); t += 200) sample(&m, t, 500, 500, 500);
     assert(m.state == GAS_NORMAL);
-    /* 窗口跟着配置的采样周期走（当前是 200 ms × GAS_SAMPLE_TIMEOUT_PERIODS），
+    /* 窗口跟着配置的采样周期走（当前是 200 ms 周期加固定余量），
      * 差一毫秒还不算中断，刚好到点才算。 */
     gas_update(&m, (T0 + 3900u) + gas_sample_timeout_ms(&m) - 1u);
     assert(m.state == GAS_NORMAL);
