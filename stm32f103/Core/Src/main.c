@@ -100,9 +100,9 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-  /* MX_GPIO_Init() 閲岄偅鍙?HAL_GPIO_WritePin 鎶?BUZZER_Pin 涔熸媺浣庝簡锛岄偅鏄寜楂?
-   * 鐢靛钩瑙﹀彂鐢熸垚鐨勩€傛湰椤圭洰鐨勮渹楦ｅ櫒浣庣數骞宠Е鍙戯紝鎵€浠ヤ笂鐢靛埌 alarm_init() 涔嬮棿瀹冧細
-   * 涓€鐩村搷锛涜繖閲屽厛鎽嗗洖绌洪棽鐢靛钩锛屽埆绛?app_init()銆?*/
+  /* MX_GPIO_Init() 里那句 HAL_GPIO_WritePin 把 BUZZER_Pin 也拉低了，那是按高
+   * 电平触发生成的。本项目的蜂鸣器低电平触发，所以上电到 alarm_init() 之间它会
+   * 一直响；这里先摆回空闲电平，别等 app_init()。 */
   bsp_buzzer_set(false);
   if (!app_init())
   {

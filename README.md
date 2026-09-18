@@ -4,11 +4,19 @@
 
 ## Keil5 编译
 
-使用 Keil5 打开 `stm32f103/MDK-ARM/smart_gas_monitor.uvprojx`，选择 `smart_gas_monitor` Target 后执行 Build。
+使用 Keil5 打开 `stm32f103/MDK-ARM/smart_gas_monitor.uvprojx`，按目标选 Target：
 
-- 可烧录文件：`build/keil5/Artifacts/smart_gas_monitor.hex`
-- 调试文件：`build/keil5/Artifacts/smart_gas_monitor.axf`、`.map`
-- 中间文件：`build/keil5/Listings/`
+| Target | 用途 | 舵机 | MQ6 |
+| --- | --- | --- | --- |
+| `smart_gas_monitor_hw` | 实物板 | PB8 / TIM4_CH3 | PA1 |
+| `smart_gas_monitor_soft` | Proteus 仿真 | PA1 / TIM2_CH2 | PA5 |
+
+两个 Target 靠 `USE_SOFT_I2C` 区分，引脚差异只在 BSP 里的 `#if` 分叉，实物那条路径不受仿真影响。
+`tools/build_keil.ps1` 一次编两个并收集产物。
+
+- 可烧录文件：`build/keil5/<hw|soft>/Artifacts/smart_gas_monitor_keil_<hw|soft>.hex`
+- 调试文件：同目录下的 `.axf`、`.map`
+- 中间文件：`build/keil5/<hw|soft>/Listings/`
 
 Keil 的 ARMCC 工具链不会自动生成 BIN；需要 BIN 时，在工程目录执行：
 
@@ -16,7 +24,7 @@ Keil 的 ARMCC 工具链不会自动生成 BIN；需要 BIN 时，在工程目�
 powershell -ExecutionPolicy Bypass -File tools/keil_make_bin.ps1
 ```
 
-生成的 `smart_gas_monitor.bin` 也会放在 `build/keil5/Artifacts/`。`build/` 是本地构建目录，不提交到 Git。
+生成的 `.bin` 也会放在同一目录。`build/` 是本地构建目录，不提交到 Git。
 
 代码分层为：main → app → bsp → HAL。
 
@@ -37,7 +45,7 @@ tools\run_host_tests.bat
 
 | 工具 | 用途 |
 | --- | --- |
-| `tools/build_arm.sh [arm-debug\|arm-release]` | CMake/Ninja 交叉编译。工具链在 STM32CubeIDE 目录下，不在 PATH 上，脚本自己挂 |
+| `tools/build_arm.sh <preset>` | CMake/Ninja 交叉编译，四个 preset：`arm-{debug,release}-{hw,soft}`。工具链在 STM32CubeIDE 目录下，不在 PATH 上，脚本自己挂 |
 | `tools/openocd.sh flash\|server\|gdb\|run` | ST-Link 烧写与调试。**不要用 STM32CubeIDE 自带的 OpenOCD**，它的脚本组合会递归报错连不上 |
 | `tools/serial_check.py COM11` | 走串口跑一遍协议功能测试，逐条比对真实应答；加 `--alarm` 额外测报警通路 |
 | `tools/gen_oled_font.py` | 由参考工程的字库重新生成 `bsp_oled.c` 里的字模表，字模要改就重跑它 |

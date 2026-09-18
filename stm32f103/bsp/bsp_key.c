@@ -83,13 +83,14 @@ uint8_t bsp_key_poll(bsp_key_t *keys, uint32_t now)
     for (i = 0; i < KEY_COUNT; ++i) {
         uint8_t mask = (uint8_t)(1u << i);
 
-        /* 涓嬮檷娌跨敱 EXTI 璁板湪涓柇閲岋紝涓诲惊鐜粈涔堟椂鍊欏洖鏉ュ鐞嗛兘绠楁暟鈥斺€旇蒋浠?I2C
-         * 涓€娆℃暣灞忓埛鏂颁細闃诲鍑犵櫨姣锛岃疆璇㈠湪杩欐鏃堕棿閲屽畬鍏ㄧ湅涓嶅埌鎸夐敭锛岀煭鎸?         * 浼氭暣娈典涪鎺夈€?*/
+        /* 下降沿由 EXTI 记在中断里，主循环什么时候回来处理都算数——软件 I2C
+         * 一次整屏刷新会阻塞几百毫秒，轮询在这段时间里完全看不到按键，短按
+         * 会整段丢掉。 */
         if (edges & mask) {
             keys->edge_ms[i] = now;
             keys->pending |= mask;
         }
-        /* 娑堟姈绐楀彛璧板畬鎵嶅彂浜嬩欢锛涚獥鍙ｉ噷鍙堟潵浜嗘柊鐨勪笅闄嶆部灏遍『寤讹紝鎶栧姩涓嶄細杩炲彂銆?*/
+        /* 消抖窗口走完才发事件；窗口里又来了新的下降沿就顺延，抖动不会连发。 */
         if ((keys->pending & mask) != 0u &&
             (uint32_t)(now - keys->edge_ms[i]) >= KEY_DEBOUNCE_MS) {
             keys->pending &= (uint8_t)~mask;

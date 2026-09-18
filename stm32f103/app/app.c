@@ -112,7 +112,7 @@ bool app_init(void)
     uint32_t now;
     memset(app, 0, sizeof(*app));
 
-    /* 鑸垫満 PWM 璧蜂笉鏉ョ殑璇濋榾闂ㄤ綅缃棤浠庝繚璇侊紝鐩存帴褰撳垵濮嬪寲澶辫触澶勭悊锛屽埆闈欓粯缁х画銆?*/
+    /* 舵机 PWM 起不来的话阀门位置无从保证，直接当初始化失败处理，别静默继续。 */
     if (!bsp_servo_init()) {
         return false;
     }
@@ -124,9 +124,9 @@ bool app_init(void)
         return false;
     }
     app->last_tick = app_ticks;
-    /* 闈㈡澘鍏堢偣璧锋潵銆傚悗闈㈣ EEPROM 瑕佽蛋涓€涓插彲鑳借秴鏃剁殑 I2C锛屽睆骞曚笉璇ヨ窡鐫€
-     * 榛戠潃绛夆€斺€擡EPROM 娌℃帴鏃堕偅娈佃兘鍒板崄鍑犵銆?*/
-    /* 涓ゆ潯 I2C 鎬荤嚎閮借蛋杞欢妯℃嫙锛屽紩鑴氳鍏堥厤濂斤紝瑙?bsp_i2c.h銆?*/
+    /* 面板先点起来。后面读 EEPROM 要走一串可能超时的 I2C，屏幕不该跟着
+     * 黑着等——EEPROM 没接时那段能到十几秒。 */
+    /* 两条 I2C 总线都走软件模拟，引脚要先配好，见 bsp_i2c.h。 */
     bsp_i2c_init();
     (void)bsp_oled_init(&app->oled, oled);
     display_init(&app->display, &app->oled);
