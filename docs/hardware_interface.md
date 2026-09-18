@@ -1,15 +1,17 @@
 # 硬件接口
 
-以下为最终硬件职责。TIM4 舵机配置已在固件中实现，`.ioc` 尚待同步。
+以下为最终硬件职责（**实物**构建 `smart_gas_monitor_hw`）。TIM4 舵机配置已在固件和 `.ioc` 中实现。
+
+> **仿真构建（`smart_gas_monitor_soft`）的舵机和 MQ6 引脚与下表不同**：舵机走 **PA1 / TIM2_CH2**，MQ6 改接 **PA5 / ADC_IN5**（PA5 的阀门灯改到 PB9）。原因是 Proteus 的 STM32 模型不实现 TIM4_CH3 走 PB8 这一路，而它实现 TIM2。**实物接线以上表为准，不需要跟着改。**详见 [Proteus 仿真说明](../hardware/proteus/README.md)第七节。
 
 | 引脚 | 标签 | 连接 | 说明 |
 | --- | --- | --- | --- |
 | PA0 | MQ4_AO | MQ-4 | ADC1_IN0，10k/18k 分压 |
-| PA1 | MQ6_AO | MQ-6 | ADC1_IN1，10k/18k 分压 |
+| PA1 | MQ6_AO | MQ-6 | ADC1_IN1，10k/18k 分压（**仿真构建里这个脚是舵机 PWM，MQ6 在 PA5**） |
 | PA4 | MQ7_AO | MQ-7 | ADC1_IN4，10k/18k 分压 |
 | PA8 | RELAY | 风扇继电器 | HIGH 触发：高电平风扇开，低电平风扇关；建议 10k 下拉 |
-| PB8 | TIM4_CH3 | 舵机燃气阀门 | 50 Hz PWM，暂定 500 us 关闭、2500 us 打开，实物校准 |
-| PA5 | VALVE_LED | 阀门指示灯 | 软件开阀指示 |
+| PB8 | TIM4_CH3 | 舵机燃气阀门 | 50 Hz PWM，500 us 关闭、2500 us 打开，实物按行程校准（**仿真构建里舵机在 PA1**） |
+| PA5 | VALVE_LED | 阀门指示灯 | 软件开阀指示（**仿真构建里这个脚是 MQ6，阀门灯在 PB9**） |
 | PA6 | LED_RED | 红灯 | ALARM/FAULT |
 | PA7 | BUZZER | 蜂鸣器 | 低电平触发，报警节奏输出 |
 | PB0 | LED_GREEN | 绿灯 | NORMAL |
@@ -42,6 +44,7 @@
 - 环境安全保持 3 秒后，KEY4 才能成功解除锁存；清除的 `lockout` 写回 EEPROM。
 - 蜂鸣器遵循现有静音、限时、持续报警设置；表中表示报警用途，不代表所有设置下持续发声。
 - TIM2 保持原 10 ms 中断；TIM4 使用 1 MHz 计数、20 ms 周期（50 Hz），启动 PWM 前装载 CLOSE 的 CCR3。
+- **仿真构建**把 TIM2 的周期改成 20 ms 并输出 CH2 给舵机，系统节拍由中断里补第二次 `app_tick_isr()` 维持 10 ms；实物构建完全不走这条路径。
 - 本表为目标行为；继电器、舵机、报警闭环及 EEPROM 掉电恢复仍待实物验收。
 
 ### 锁存与掉电恢复

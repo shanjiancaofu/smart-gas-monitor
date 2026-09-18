@@ -19,7 +19,7 @@
 | 引脚 | 功能 | 连接 |
 | --- | --- | --- |
 | PA0 | ADC1_IN0 | MQ-4 AO 分压节点 |
-| PA1 | ADC1_IN1 | MQ-6 AO 分压节点 |
+| PA1 | ADC1_IN1 | MQ-6 AO 分压节点（**仿真构建里这个脚是舵机 PWM，MQ6 在 PA5**，见[仿真说明](../hardware/proteus/README.md)第七节） |
 | PA4 | ADC1_IN4 | MQ-7 AO 分压节点 |
 | PA2 / PA3 | USART2_TX / RX | HC-05 RXD / TXD |
 | PA9 / PA10 | USART1_TX / RX | USB-TTL RXD / TXD |
@@ -30,7 +30,7 @@
 | PA6 | GPIO | 红 LED，ALARM/FAULT |
 | PA7 | GPIO | 有源蜂鸣器 |
 | PA8 | GPIO | 风扇继电器 IN，高电平启动，默认 OFF |
-| PB8 | TIM4_CH3 PWM | 舵机燃气阀门，50 Hz，500 us CLOSE / 2500 us OPEN（待校准） |
+| PB8 | TIM4_CH3 PWM | 舵机燃气阀门，50 Hz，500 us CLOSE / 2500 us OPEN（实物按行程校准；**仿真构建里舵机在 PA1**） |
 | PA5 | GPIO | 阀门状态 LED |
 | PB12 | EXTI12 | KEY1 页面/选择 |
 | PB13 | EXTI13 | KEY2 增加 |

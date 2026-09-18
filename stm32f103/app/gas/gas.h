@@ -69,7 +69,9 @@ void gas_key(gas_t *m, unsigned key, uint32_t now);
 bool gas_set_threshold(gas_t *m, gas_channel_t channel, uint16_t value, uint32_t now);
 bool gas_set_period(gas_t *m, uint16_t ms, uint32_t now);
 
-bool gas_set_buzzer(gas_t *m, uint16_t value, uint32_t now);
+/* value 取 int 而非 int8_t：调用者递进来的越界值要先被看见，不能被收窄成
+ * 某个合法档位。合法取值见 config.h：-1=ALWAYS, 0=OFF, 1..60=秒。 */
+bool gas_set_buzzer(gas_t *m, int value, uint32_t now);
 
 void gas_close_valve(gas_t *m, uint32_t now);
 bool gas_valve_open(const gas_t *m);

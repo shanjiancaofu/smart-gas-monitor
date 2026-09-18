@@ -243,6 +243,14 @@ void TIM2_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
   app_tick_isr();
+#if USE_SOFT_I2C
+  /* 仿真分支把 TIM2 的周期改成了 20 ms 给舵机用（50 Hz 是舵机的硬要求，见
+   * bsp/bsp_servo.c），而系统节拍仍是 10 ms，所以一次溢出补两次。
+   * app.c 里所有业务计时走的是 HAL_GetTick()（SysTick，和 TIM2 无关），
+   * app_ticks 只管采样节拍和蜂鸣器节奏；采样速率不变，蜂鸣器的时间分辨率
+   * 降到 20 ms，而最短的一段是 BEEP_ON_TICKS=8（80 ms），听不出来。 */
+  app_tick_isr();
+#endif
   /* USER CODE END TIM2_IRQn 1 */
 }
 

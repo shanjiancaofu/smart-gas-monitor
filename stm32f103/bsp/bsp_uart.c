@@ -212,7 +212,11 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *uart)
     __HAL_UART_CLEAR_NEFLAG(s->uart);
     __HAL_UART_CLEAR_PEFLAG(s->uart);
     /* 帧错误或溢出错误会让 HAL 的接收停下来。重新启动正是关键：无线链路的
-     * 一个坏字节，不该让这个口在剩下的运行时间里一直沉默。 */
+     * 一个坏字节，不该让这个口在剩下的运行时间里一直沉默。
+     *
+     * 返回值要落回 s->ready，跟另外两处一样：重启也可能失败，那时这个口是真的
+     * 收不了东西了。继续留着 ready = true，bsp_uart_write() 就会一直往一个
+     * 没人收的端口回话——调用方从返回值上看不出任何异常。 */
     (void)HAL_UART_AbortReceive(s->uart);
-    (void)HAL_UART_Receive_IT(s->uart, &s->rx_byte, 1);
+    s->ready = HAL_UART_Receive_IT(s->uart, &s->rx_byte, 1) == HAL_OK;
 }

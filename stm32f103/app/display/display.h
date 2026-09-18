@@ -28,6 +28,18 @@ typedef struct {
      * 顶掉使用者选的那一页，所以这里存的是实际画出来的那一页，不是 gas 状态数据。 */
     uint8_t screen, page;
     uint32_t last_draw_ms;
+    /* 已经画在屏上的那条历史记录，连同它的解码结果。记录存在 EEPROM 里，整条
+     * 16 字节读一次在软件 I2C 下不便宜，而站着这一页不动的时候它根本不会变；
+     * 但换了一条就得整屏推——半条记录还不如不画。next_seq 是缓存的有效期：
+     * 期间写进过新记录就作废，否则环满时条数不变、下标不变，会一直显示旧内容。 */
+    uint16_t drawn_history_index;
+    uint16_t drawn_history_seq;
+    history_entry_t drawn_history;
+    bool history_cached;
+    /* 下一次重画要整屏推。由使用者的动作置位（翻页、翻记录），display_update()
+     * 用完就清。比在这里反过来猜「这次变了几页」可靠：实时页八页都在变，按变化
+     * 量判会让它每帧都整屏推，主循环就再也追不上采样。 */
+    bool force_full;
 } display_t;
 
 /* 只记下面板对象，不初始化它：建面板是 BSP 的活，组合层做。

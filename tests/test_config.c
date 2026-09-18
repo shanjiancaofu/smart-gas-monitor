@@ -89,12 +89,28 @@ static void test_store(void)
     b = a; b.buzzer = GAS_BUZZER_MAX_S + 1u;
     assert(!config_save(&io, &b));
 }
+/* 把某个槽伪造成「上一版固件写下的记录」：改版本号和蜂鸣器字节，再重算 CRC。
+ * 要改的字段必须先改完再调它——CRC 覆盖 0..12，改在它后面就白改了。
+ *
+ * 槽位必须点名：config_save() 是在两个槽之间轮换写的，伪造哪个槽决定了这次
+ * 读回的是不是它。伪造成旧的那个槽，读回来的是新槽，断言会因为这个错误的
+ * 原因通过。 */
+static void seal(fake_t *f, unsigned slot, uint8_t version, uint8_t buzzer_byte)
+{
+    uint8_t *p = f->data + slot * 16u;
+    uint16_t crc;
+    p[1] = version;
+    p[3] = buzzer_byte;
+    crc = test_crc16(p, 13u);
+    p[13] = (uint8_t)crc;
+    p[14] = (uint8_t)(crc >> 8);
+}
+
 static void test_version_mismatch_falls_back(void)
 {
     fake_t f;
     config_io_t io = {&f, read_mem, write_mem};
     gas_config_t a, loaded;
-    uint16_t crc;
 
     memset(&f, 0xff, sizeof(f)); f.budget = -1;
     config_defaults(&a);
@@ -102,23 +118,33 @@ static void test_version_mismatch_falls_back(void)
     assert(config_save(&io, &a));
 
     /* A truly old layout remains invalid. */
-    f.data[1] = 1u;
-    crc = test_crc16(f.data, 13u);
-    f.data[13] = (uint8_t)crc;
-    f.data[14] = (uint8_t)(crc >> 8);
+    seal(&f, 0u, 1u, 0u);
     assert(!config_load(&io, &loaded));
 
-    /* v6 is layout-compatible. Apply v7's new buzzer default and,
-       critically, retain the persisted safety lockout. */
+    /* v6 及更早：那时还没有蜂鸣器档位这个概念，给默认值。阈值、周期，尤其是
+     * 落盘的安全锁存都要原样保留——升级固件不能顺手把阀门解锁。 */
     assert(config_save(&io, &a));
-    f.data[1] = 6u;
-    f.data[3] = 61u;
     f.data[12] = 1u;
-    crc = test_crc16(f.data, 13u);
-    f.data[13] = (uint8_t)crc;
-    f.data[14] = (uint8_t)(crc >> 8);
+    seal(&f, 0u, 6u, 61u);
     assert(config_load(&io, &loaded));
     assert(loaded.buzzer == GAS_BUZZER_ALWAYS && loaded.lockout);
+
+    /* 槽 0 现在是一份合法的 v6 记录，所以这一笔会写到槽 1、序号 +1。下面伪造
+     * 的就是槽 1——它才是「较新的记录」，不伪造它就读不回来。 */
+    assert(config_save(&io, &a));
+    /* v7 的编码是 0=OFF / 1=ALWAYS / 2..60=秒，只有 "1" 的含义变了（ALWAYS
+     * 让位给「1 秒」），其余档位按数值一一对应。 */
+    seal(&f, 1u, 7u, 1u);
+    assert(config_load(&io, &loaded));
+    assert(loaded.buzzer == GAS_BUZZER_ALWAYS && loaded.lockout);
+
+    seal(&f, 1u, 7u, 5u);
+    assert(config_load(&io, &loaded));
+    assert(loaded.buzzer == 5);
+
+    seal(&f, 1u, 7u, 0u);
+    assert(config_load(&io, &loaded));
+    assert(loaded.buzzer == GAS_BUZZER_OFF);
 }
 
 int main(void)

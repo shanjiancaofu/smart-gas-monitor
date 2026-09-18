@@ -11,7 +11,7 @@ void config_defaults(gas_config_t *c)
     c->alarm[1] = 2400;
     c->alarm[2] = 2400;
     c->sample_period_ms = 100;
-    /* Buzzer encoding: 0=OFF, 1=ALWAYS, 2..60=seconds. */
+    /* 见 config.h：-1=ALWAYS, 0=OFF, 1..60=秒。 */
     c->buzzer = GAS_BUZZER_ALWAYS;
     c->lockout = false;
 }
@@ -24,24 +24,25 @@ bool config_valid(const gas_config_t *c)
             return false;
         }
     }
-    /* 蜂鸣器只判上界：0 是合法取值（不响），而下界由无符号类型本身兜住。 */
-    return c->buzzer <= GAS_BUZZER_MAX_S && c->sample_period_ms >= GAS_PERIOD_MIN_MS &&
+    /* 蜂鸣器是有符号的：两端都要判，-1 是「一直响」而不是越界值。 */
+    if (c->buzzer < GAS_BUZZER_ALWAYS || c->buzzer > GAS_BUZZER_MAX_S) {
+        return false;
+    }
+    return c->sample_period_ms >= GAS_PERIOD_MIN_MS &&
            c->sample_period_ms <= GAS_PERIOD_MAX_MS && c->sample_period_ms % GAS_TICK_MS == 0u;
 }
 
-void config_buzzer_name(uint8_t value, char *out, size_t size)
+void config_buzzer_name(int8_t value, char *out, size_t size)
 {
     if (size == 0u) {
         return;
     }
-    /* 判 >= 而不是 == ：万一有个超出范围的值得了进来，它读作最长的那个档位，
-     * 而不是显示成「61S」这种不存在的设置。 */
     if (value == GAS_BUZZER_OFF) {
         (void)snprintf(out, size, "OFF");
     } else if (value == GAS_BUZZER_ALWAYS) {
         (void)snprintf(out, size, "ALWAYS");
     } else {
-        (void)snprintf(out, size, "%uS", (unsigned)value);
+        (void)snprintf(out, size, "%dS", (int)value);
     }
 }
 
@@ -71,7 +72,7 @@ uint16_t config_buzzer_duration_ms(const gas_config_t *config)
  * 字段整体前移，是为了让其余字段的偏移和 v4 保持一致。 */
 #define CONFIG_SLOT_SIZE 16u
 #define CONFIG_MAGIC 0xa5u
-#define CONFIG_VERSION 7u
+#define CONFIG_VERSION 8u
 #define CONFIG_COMMIT 0x5au
 
 static uint16_t crc16(const uint8_t *p, unsigned n)
@@ -99,14 +100,14 @@ static bool decode(const uint8_t *b, gas_config_t *c)
 {
     unsigned i;
     uint8_t version;
-    uint8_t buzzer;
+    int8_t buzzer;
 
     if (b[0] != CONFIG_MAGIC || b[15] != CONFIG_COMMIT ||
         get16(b + 13) != crc16(b, 13)) {
         return false;
     }
     version = b[1];
-    if (version != CONFIG_VERSION && version != 6u) {
+    if (version != CONFIG_VERSION && version != 7u && version != 6u) {
         return false;
     }
     for (i = 0; i < GAS_COUNT; ++i) {
@@ -114,10 +115,14 @@ static bool decode(const uint8_t *b, gas_config_t *c)
     }
     c->sample_period_ms = get16(b + 10);
     c->lockout = b[12] != 0u;
-    buzzer = b[3];
+    buzzer = (int8_t)b[3];
     if (version == 6u) {
-        /* The encoding changed in v7. Apply the new default while preserving
-           thresholds, period and, most importantly, the safety lockout. */
+        /* v6 及更早没有蜂鸣器档位这个概念，给默认值即可。阈值、周期，尤其是
+         * 安全锁存都原样保留。 */
+        buzzer = GAS_BUZZER_ALWAYS;
+    } else if (version == 7u && buzzer == 1) {
+        /* v7 是 0=OFF / 1=ALWAYS / 2..60=秒；v8 是 -1=ALWAYS / 0=OFF / 1..60=秒。
+         * 只有 "1" 的含义变了（ALWAYS 变成「1 秒」），其余档位一一对应。 */
         buzzer = GAS_BUZZER_ALWAYS;
     }
     c->buzzer = buzzer;

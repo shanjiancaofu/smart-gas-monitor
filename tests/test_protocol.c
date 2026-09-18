@@ -158,16 +158,26 @@ static void test_set(void)
 
 
     command(&p, "SET BUZZER 60", (T0 + 100u), out, sizeof(out));
-    assert(strcmp(out, "OK BUZZ=60S") == 0 && m.config.buzzer == 60u);
+    assert(strcmp(out, "OK BUZZ=60S") == 0 && m.config.buzzer == 60);
     command(&p, "SET BUZZER 1", (T0 + 100u), out, sizeof(out));
+    assert(strcmp(out, "OK BUZZ=1S") == 0 && m.config.buzzer == 1);
+    /* 编码本身也能直接敲回来：-1 就是 ALWAYS。 */
+    command(&p, "SET BUZZER -1", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "OK BUZZ=ALWAYS") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
     command(&p, "SET BUZZER 61", (T0 + 100u), out, sizeof(out));
+    assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
+    command(&p, "SET BUZZER -2", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
 
     command(&p, "SET BUZZER 256", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
+    /* 0xffff 收窄成 int8 就是 -1，一个合法档位——所以必须在收窄前拒掉。 */
+    command(&p, "SET BUZZER 65535", (T0 + 100u), out, sizeof(out));
+    assert(strcmp(out, "ERR RANGE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
 
     command(&p, "SET BUZZER S", (T0 + 100u), out, sizeof(out));
+    assert(strcmp(out, "ERR VALUE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
+    command(&p, "SET BUZZER -", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "ERR VALUE") == 0 && m.config.buzzer == GAS_BUZZER_ALWAYS);
 
     command(&p, "SET MQ9 1000", (T0 + 100u), out, sizeof(out));

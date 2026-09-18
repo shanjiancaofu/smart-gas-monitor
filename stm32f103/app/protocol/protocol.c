@@ -76,12 +76,16 @@ static bool channel_of(const char *token, gas_channel_t *out)
 }
 
 /* SET BUZZER 的取值：OFF、ALWAYS，或一个秒数。末尾的 S 可有可无，这样
- * CONFIG? 打印出来的 "5S" 能原样敲回来。范围不在这里判，交给
- * gas_set_buzzer()：超范围要回 ERR RANGE，而不是 ERR VALUE。 */
-static bool parse_buzzer(const char *token, uint16_t *out)
+ * CONFIG? 打印出来的 "5S" 能原样敲回来；带不带负号也都可以，于是 -1 这套编码
+ * 能直接敲。范围不在这里判，交给 gas_set_buzzer()：超范围要回 ERR RANGE，而不是
+ * ERR VALUE。 */
+static bool parse_buzzer(const char *token, int *out)
 {
     char digits[TOKEN_LEN];
     size_t n = strlen(token);
+    size_t start = 0u;
+    bool negative = false;
+    uint16_t magnitude;
     if (strcmp(token, "OFF") == 0) {
         *out = GAS_BUZZER_OFF;
         return true;
@@ -93,12 +97,21 @@ static bool parse_buzzer(const char *token, uint16_t *out)
     if (n > 0u && token[n - 1u] == 'S') {
         --n;
     }
-    if (n == 0u || n + 1u > sizeof(digits)) {
+    if (n > 0u && token[0] == '-') {
+        negative = true;
+        start = 1u;
+    }
+    if (n <= start || n - start + 1u > sizeof(digits)) {
         return false;
     }
-    memcpy(digits, token, n);
-    digits[n] = '\0';
-    return parse_u16(digits, out);
+    memcpy(digits, token + start, n - start);
+    digits[n - start] = '\0';
+    if (!parse_u16(digits, &magnitude)) {
+        return false;
+    }
+    /* 负号只用来写 -1；其余负值照样送到 gas_set_buzzer() 判范围。 */
+    *out = negative ? -(int)magnitude : (int)magnitude;
+    return true;
 }
 
 /* 排入一条自身即完整的应答。 */
@@ -180,13 +193,14 @@ void protocol_command(protocol_t *p, const char *line, uint32_t now)
          * 按原顺序，OFF 和 ALWAYS 会先被判成 ERR VALUE 就返回了。 */
         if (strcmp(tokens[1], "BUZZER") == 0) {
             char name[8];
-            if (!parse_buzzer(tokens[2], &value)) {
+            int buzz;
+            if (!parse_buzzer(tokens[2], &buzz)) {
                 one(p, "ERR VALUE");
-            } else if (!gas_set_buzzer(p->monitor, value, now)) {
+            } else if (!gas_set_buzzer(p->monitor, buzz, now)) {
                 one(p, "ERR RANGE");
             } else {
                 /* 回显名字而不是数字：这样打印出来的值可以原样敲回去。 */
-                config_buzzer_name((uint8_t)value, name, sizeof(name));
+                config_buzzer_name((int8_t)buzz, name, sizeof(name));
                 onef(p, "OK BUZZ=%s", name);
             }
         } else if (!parse_u16(tokens[2], &value)) {

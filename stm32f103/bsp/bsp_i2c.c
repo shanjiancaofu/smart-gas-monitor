@@ -86,6 +86,16 @@ void bsp_i2c_init(void)
     GPIO_InitTypeDef gpio = {0};
     unsigned i;
 
+    /* 先把 CubeMX 初始化好的硬件 I2C 关掉，再接管引脚。只抢 GPIO 不管外设的话，
+     * I2C1/I2C2 还使能着，SCL/SDA 上随便一点边沿都会被它当成起始条件去响应，
+     * 和下面这套软件时序打架。
+     *
+     * DeInit 不负责释放引脚——本工程的 hal_msp.c 里没有 I2C 的 MspDeInit，它挂的
+     * 是空实现——所以后面那次 HAL_GPIO_Init() 仍然是把引脚从复用功能改成 GPIO
+     * 的开漏所必需的一步。 */
+    (void)HAL_I2C_DeInit(&hi2c1);
+    (void)HAL_I2C_DeInit(&hi2c2);
+
     __HAL_RCC_GPIOB_CLK_ENABLE();
     gpio.Mode = GPIO_MODE_OUTPUT_OD;
     gpio.Pull = GPIO_NOPULL;   /* 閻炲棛鏁辩憴?sda_output() */

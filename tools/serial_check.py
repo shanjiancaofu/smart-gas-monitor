@@ -24,7 +24,10 @@ STATUS_LINES = [R(r"STATE=\w+ VALVE=(OPEN|CLOSED) ALARMS=\d+"),
 READ_ONLY = [
     ("STATUS?", STATUS_LINES),
     ("status?", STATUS_LINES),                       # 命令不区分大小写
-    ("CONFIG?", ["TH MQ4=2400 MQ6=2400 MQ7=2400 PERIOD=100 BUZZ=5S"]),
+    # 蜂鸣器档位不写死：默认是 ALWAYS，而本脚本跑完会把板上那份还原成 5S，
+    # 所以具体是哪个值取决于这块板之前有没有跑过。只校验它是合法档位。
+    ("CONFIG?", [R(r"TH MQ4=2400 MQ6=2400 MQ7=2400 PERIOD=100 "
+                   r"BUZZ=(OFF|ALWAYS|\d+S)")]),
     ("HISTORY?", [R(r"HISTORY \d+/\d+")]),
     ("", []),                                        # 空行是行结束，不回话
     ("NONSENSE", ["ERR UNKNOWN"]),
@@ -38,9 +41,13 @@ READ_ONLY = [
     ("SET MQ4 9999", ["ERR RANGE"]),                 # 高于上限 4000
     ("SET PERIOD 50", ["ERR RANGE"]),                # 低于 100
     ("SET PERIOD 255", ["ERR RANGE"]),               # 不是 10 的整数倍
-    ("SET BUZZER 61", ["OK BUZZ=ALWAYS"]),           # 61 就是 ALWAYS 的哨兵值
-    ("SET BUZZER 62", ["ERR RANGE"]),                # 比哨兵值还大 1
+    ("SET BUZZER 61", ["ERR RANGE"]),                # 秒数只到 60
+    ("SET BUZZER 62", ["ERR RANGE"]),
     ("SET BUZZER 256", ["ERR RANGE"]),
+    ("SET BUZZER -1", ["OK BUZZ=ALWAYS"]),           # 编码本身就是 -1=ALWAYS
+    ("SET BUZZER 1", ["OK BUZZ=1S"]),                # -1 之外只剩 0 和 1..60
+    ("SET BUZZER -2", ["ERR RANGE"]),                # -1 是最后一个合法负数
+    ("SET BUZZER 65535", ["ERR RANGE"]),             # 收窄成 int8 会变成 -1，必须先拒
     ("VALVE OPEN", ["ERR ONLY CLOSE"]),              # 刻意没有远程开阀；这条不改状态
 ]
 

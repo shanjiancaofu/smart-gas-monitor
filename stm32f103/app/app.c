@@ -9,6 +9,7 @@
 #include "bsp_adc.h"
 #include "bsp_i2c.h"
 #include "bsp_servo.h"
+#include "bsp_led.h"
 #include "bsp_eeprom.h"
 #include "bsp_key.h"
 #include "bsp_uart.h"
@@ -115,6 +116,8 @@ bool app_init(void)
     if (!bsp_servo_init()) {
         return false;
     }
+    /* 引脚先配齐，再让谁去驱动它们。alarm_init() 一上来就会写这几个灯。 */
+    bsp_led_init();
     alarm_init(&app->alarm);
 
     if (HAL_TIM_Base_Start_IT(tick) != HAL_OK) {

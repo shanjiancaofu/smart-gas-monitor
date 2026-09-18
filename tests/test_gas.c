@@ -214,26 +214,31 @@ static void test_buzzer_value(void)
     assert(c.buzzer == GAS_BUZZER_ALWAYS && config_valid(&c));
     c.buzzer = GAS_BUZZER_MAX_S;
     assert(config_valid(&c));
-    c.buzzer = GAS_BUZZER_MAX_S + 1u;
+    c.buzzer = GAS_BUZZER_MAX_S + 1;
+    assert(!config_valid(&c));
+    /* -1 是「一直响」，不是越界；-2 才是。两端都要判。 */
+    c.buzzer = GAS_BUZZER_ALWAYS;
+    assert(config_valid(&c));
+    c.buzzer = GAS_BUZZER_ALWAYS - 1;
     assert(!config_valid(&c));
 
     c.buzzer = GAS_BUZZER_OFF;
     assert(config_buzzer_duration_ms(&c) == 0u);
     c.buzzer = GAS_BUZZER_ALWAYS;
     assert(config_buzzer_duration_ms(&c) == GAS_BUZZER_FOREVER_MS);
-    c.buzzer = GAS_BUZZER_MIN_S;
-    assert(config_buzzer_duration_ms(&c) == 2000u);
+    c.buzzer = 1;
+    assert(config_buzzer_duration_ms(&c) == 1000u);
     c.buzzer = GAS_BUZZER_MAX_S;
     assert(config_buzzer_duration_ms(&c) == 60000u);
-    c.buzzer = GAS_BUZZER_MAX_S + 1u;
+    c.buzzer = GAS_BUZZER_MAX_S + 1;
     assert(config_buzzer_duration_ms(&c) == 0u);
 
     config_buzzer_name(GAS_BUZZER_OFF, name, sizeof(name));
     assert(strcmp(name, "OFF") == 0);
     config_buzzer_name(GAS_BUZZER_ALWAYS, name, sizeof(name));
     assert(strcmp(name, "ALWAYS") == 0);
-    config_buzzer_name(GAS_BUZZER_MIN_S, name, sizeof(name));
-    assert(strcmp(name, "2S") == 0);
+    config_buzzer_name(1, name, sizeof(name));
+    assert(strcmp(name, "1S") == 0);
     config_buzzer_name(GAS_BUZZER_MAX_S, name, sizeof(name));
     assert(strcmp(name, "60S") == 0);
 
@@ -255,24 +260,33 @@ static void test_buzzer_keys(void)
     assert(m.item == GAS_ITEM_BUZZER);
     m.dirty = false;
 
-    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == GAS_BUZZER_MAX_S && m.dirty);
+    /* 默认停在环上的 ALWAYS。往上按一下绕回底端的 OFF——这就是首尾相接。 */
+    assert(m.config.buzzer == GAS_BUZZER_ALWAYS);
     gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == GAS_BUZZER_MAX_S);
+    assert(m.config.buzzer == GAS_BUZZER_OFF && m.dirty);
 
-    for (i = 0; i < 100; ++i) gas_key(&m, GAS_KEY_DOWN, T0);
-    assert(m.config.buzzer == GAS_BUZZER_OFF);
-    gas_key(&m, GAS_KEY_DOWN, T0);
-    assert(m.config.buzzer == GAS_BUZZER_OFF);
-
+    /* 一路往上走：OFF → 1S → … → 60S 正好 60 步，第 61 步到 ALWAYS，第 62 步
+     * 绕回 OFF。环上没有端点，所以按多少下都不会停住。 */
+    for (i = 1u; i <= GAS_BUZZER_MAX_S; ++i) {
+        gas_key(&m, GAS_KEY_UP, T0);
+        assert(m.config.buzzer == (int)i);
+    }
     gas_key(&m, GAS_KEY_UP, T0);
     assert(m.config.buzzer == GAS_BUZZER_ALWAYS);
     gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == GAS_BUZZER_MIN_S);
-    for (i = GAS_BUZZER_MIN_S; i < GAS_BUZZER_MAX_S; ++i) gas_key(&m, GAS_KEY_UP, T0);
-    assert(m.config.buzzer == GAS_BUZZER_MAX_S);
+    assert(m.config.buzzer == GAS_BUZZER_OFF);
+
+    /* 反方向是环的另一面：OFF → ALWAYS → 60S → … → 1S → OFF。 */
     gas_key(&m, GAS_KEY_DOWN, T0);
-    assert(m.config.buzzer == GAS_BUZZER_MAX_S - 1u);
+    assert(m.config.buzzer == GAS_BUZZER_ALWAYS);
+    gas_key(&m, GAS_KEY_DOWN, T0);
+    assert(m.config.buzzer == GAS_BUZZER_MAX_S);
+    for (i = GAS_BUZZER_MAX_S; i > 1u; --i) {
+        gas_key(&m, GAS_KEY_DOWN, T0);
+        assert(m.config.buzzer == (int)i - 1);
+    }
+    gas_key(&m, GAS_KEY_DOWN, T0);
+    assert(m.config.buzzer == GAS_BUZZER_OFF);
 
     assert(m.config.alarm[GAS_MQ4] == 2400u);
     assert(m.config.sample_period_ms == 100u);
@@ -286,8 +300,8 @@ static void test_buzzer_set(void)
     char name[16];
 
     run_to_normal(&m, 0);
-    /* 60 以内逐档都对，61 是「一直响」。 */
-    assert(gas_set_buzzer(&m, 1u, T0) && m.config.buzzer == 1u);
+    /* 整根轴的三段各取一个：秒数、一直响、不响。 */
+    assert(gas_set_buzzer(&m, 1, T0) && m.config.buzzer == 1);
     assert(gas_set_buzzer(&m, GAS_BUZZER_MAX_S, T0));
     assert(m.config.buzzer == GAS_BUZZER_MAX_S);
     assert(gas_set_buzzer(&m, GAS_BUZZER_ALWAYS, T0));
@@ -295,11 +309,13 @@ static void test_buzzer_set(void)
     assert(gas_set_buzzer(&m, GAS_BUZZER_OFF, T0));
     assert(m.config.buzzer == GAS_BUZZER_OFF && config_buzzer_duration_ms(&m.config) == 0u);
 
-    /* 超出编码范围的值必须在收窄成 uint8 之前就被拒：256 截断成 0 会成为
-     * 一个合法取值，静默地把蜂鸣器关掉，而调用者要的显然不是这个。 */
-    assert(!gas_set_buzzer(&m, GAS_BUZZER_MAX_S + 1u, T0));
-    assert(!gas_set_buzzer(&m, 256u, T0));
-    assert(!gas_set_buzzer(&m, 0xffffu, T0));
+    /* 超出编码范围的值必须在收窄成 int8 之前就被拒：256 截断成 0 会成为
+     * 一个合法取值，静默地把蜂鸣器关掉；0xffff 截断成 -1 更糟，会静默变成
+     * 「一直响」。两者都不是调用者要的那个。 */
+    assert(!gas_set_buzzer(&m, GAS_BUZZER_MAX_S + 1, T0));
+    assert(!gas_set_buzzer(&m, 256, T0));
+    assert(!gas_set_buzzer(&m, 0xffff, T0));
+    assert(!gas_set_buzzer(&m, GAS_BUZZER_ALWAYS - 1, T0));
     assert(m.config.buzzer == GAS_BUZZER_OFF);
 
     /* 面板上显示的名字就是串口回显的名字，两边共用一份拼写。 */
@@ -340,7 +356,10 @@ static void test_ready_hysteresis(void)
     }
     assert(m.state == GAS_SAFE_WAIT && m.reset_ready);
 
-    mid = (uint16_t)((uint32_t)m.config.alarm[0] * 85u / 100u);
+    /* 计时开始之后，浓度只要没到释放线就继续走完——取两条线正中间那个值，
+     * 这样 70/75 往哪边调，这条断言都还站在回差带里。 */
+    mid = (uint16_t)((uint32_t)m.config.alarm[0] *
+                     (GAS_SAFE_PERCENT + GAS_SAFE_RELEASE_PERCENT) / 200u);
     sample(&m, T0 + 3300u, mid, 500u, 500u);
     assert(m.reset_ready);
 

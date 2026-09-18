@@ -44,18 +44,33 @@ static bool period_step(uint16_t *value, bool up)
     return *value != old;
 }
 
-/* 蜂鸣器时长的取值排在同一个数轴上，所以是简单加减、两端夹取，不做环绕：
- * 「加」永远意味着响得更久，撞到「一直响」就停在那一档。 */
-static bool buzzer_step(uint8_t *value, bool up)
+/* 面板上的档位是一根环，从「不响」一路排到「一直响」，首尾相接：
+ *
+ *     OFF(0) → 1S → 2S → … → 60S → ALWAYS(-1) ─┐
+ *       ↑                                        │
+ *       └────────────────────────────────────────┘
+ *
+ * 编码里 ALWAYS 是 -1，数值上排在 OFF 前面，所以这里不能直接加减：得把 -1
+ * 挪到 60 的上面去，让「加」永远意味着响得更久。到顶再按就绕回 OFF——环上没有
+ * 端点，两个方向都能一直走下去。 */
+static bool buzzer_step(int8_t *value, bool up)
 {
-    uint8_t old = *value;
+    int8_t old = *value;
     if (up) {
-        if (*value < GAS_BUZZER_MAX_S) {
-            *value = (uint8_t)(*value + 1u);
+        if (*value == GAS_BUZZER_ALWAYS) {
+            *value = GAS_BUZZER_OFF;
+        } else if (*value == GAS_BUZZER_MAX_S) {
+            *value = GAS_BUZZER_ALWAYS;
+        } else {
+            *value = (int8_t)(*value + 1);
         }
     } else {
-        if (*value > GAS_BUZZER_OFF) {
-            *value = (uint8_t)(*value - 1u);
+        if (*value == GAS_BUZZER_OFF) {
+            *value = GAS_BUZZER_ALWAYS;
+        } else if (*value == GAS_BUZZER_ALWAYS) {
+            *value = GAS_BUZZER_MAX_S;
+        } else {
+            *value = (int8_t)(*value - 1);
         }
     }
     return *value != old;
@@ -239,10 +254,12 @@ void gas_update(gas_t *m, uint32_t now)
         return;
     }
     m->alarm_mask = 0;
-    /* Recovery hysteresis: enter the safe window below 80%, but once the
-       timer/READY state is active, do not drop it until a channel reaches 90%.
-       This prevents ADC quantization and potentiometer noise from flashing
-       LOCKED/READY while still rejecting a real concentration rise. */
+    /* 恢复判定有回差（具体两条线见 config.h）：低于 70% 才开始计时，计时途中涨
+     * 到 75% 就作废。单线判定时，浓度正好压在线上来回抖会让 LOCKED/READY 跟着
+     * 闪；回差既压住了这种抖动，又不会放过一次真的回升。
+     *
+     * 注意计时一旦开始，就不再看 safe_enter、只看 safe_hold：已经在读秒的那次
+     * 恢复，允许它停在 70~75 这段里继续走完。 */
     if (!m->safe_timing) {
         if (safe_enter) {
             ++m->dbg_safe;
@@ -352,15 +369,17 @@ bool gas_set_period(gas_t *m, uint16_t ms, uint32_t now)
     return true;
 }
 
-bool gas_set_buzzer(gas_t *m, uint16_t value, uint32_t now)
+/* 取值用 int 收，而不是直接收成 int8_t：调用者递进来的 0xffff 一旦先被收窄，
+ * 就变成 -1，也就是「一直响」这个合法档位。256 收窄成 0 同理，会静默变成
+ * 「不响」。两者都是安全的取值，但都不是调用者要的那个，所以必须在收窄之前
+ * 按原始数值判范围。 */
+bool gas_set_buzzer(gas_t *m, int value, uint32_t now)
 {
     gas_config_t candidate = m->config;
-    /* 先判上界再收窄：256 截断成 0 会被 config_valid() 放行，静默变成
-     * 「不响」，那是个安全的取值，但绝不是调用者要的那个。 */
-    if (value > GAS_BUZZER_MAX_S) {
+    if (value < GAS_BUZZER_ALWAYS || value > GAS_BUZZER_MAX_S) {
         return false;
     }
-    candidate.buzzer = (uint8_t)value;
+    candidate.buzzer = (int8_t)value;
     if (!config_valid(&candidate)) {
         return false;
     }
@@ -385,7 +404,14 @@ bool gas_save_due(const gas_t *m, uint32_t now)
 
 bool gas_read_samples(gas_adc_read_fn read, void *context, uint16_t values[GAS_COUNT])
 {
+#if USE_SOFT_I2C
+    /* 仿真分支：PA1（ADC_IN1）让给了舵机 PWM（TIM2_CH2），MQ6 改接 PA5
+     * （ADC_IN5）；PA5 原来的阀门灯在 bsp_led.c 里挪到了 PB9。
+     * 只影响仿真——实物分支仍是 PA0/PA1/PA4。 */
+    static const uint8_t channels[GAS_COUNT] = {0, 5, 4};
+#else
     static const uint8_t channels[GAS_COUNT] = {0, 1, 4};
+#endif
     unsigned channel, sample;
 
     for (channel = 0; channel < GAS_COUNT; ++channel) {
