@@ -43,6 +43,19 @@ tools\run_host_tests.bat
 
 ## 其他工具
 
+### 实物编译与 OpenOCD 烧录（Git Bash）
+
+```bash
+tools/build_arm.sh arm-debug-hw
+tools/openocd.sh flash build/arm-debug-hw/smart_gas_monitor_gcc_hw.elf
+```
+
+`flash` 命令会自动执行 verify，看到 `** Verified OK **` 才算烧录完成。
+
+Keil5 的 `smart_gas_monitor_hw` 目标也已切换为 ST-Link：打开
+`stm32f103/MDK-ARM/smart_gas_monitor.uvprojx`，选择该目标后点击
+`Build`，再点击 `Download`（或 `F8`）。`smart_gas_monitor_soft` 仍保留仿真配置。
+
 | 工具 | 用途 |
 | --- | --- |
 | `tools/build_arm.sh <preset>` | CMake/Ninja 交叉编译，四个 preset：`arm-{debug,release}-{hw,soft}`。工具链在 STM32CubeIDE 目录下，不在 PATH 上，脚本自己挂 |

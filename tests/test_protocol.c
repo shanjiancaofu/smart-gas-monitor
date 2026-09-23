@@ -79,10 +79,10 @@ static void test_queries(void)
 
     command(&p, "STATUS?", (T0 + 100u), out, sizeof(out));
     assert(strcmp(out, "STATE=NORMAL VALVE=OPEN ALARMS=0|"
-                       "MQ4=500/2400 MQ6=500/2400 MQ7=500/2400") == 0);
+                       "MQ4=500/4000 MQ6=500/2000 MQ7=500/3000") == 0);
 
     command(&p, "CONFIG?", (T0 + 100u), out, sizeof(out));
-    assert(strcmp(out, "TH MQ4=2400 MQ6=2400 MQ7=2400 PERIOD=100 BUZZ=ALWAYS") == 0);
+    assert(strcmp(out, "TH MQ4=4000 MQ6=2000 MQ7=3000 PERIOD=100 BUZZ=ALWAYS") == 0);
 
 
     command(&p, "HISTORY?", (T0 + 100u), out, sizeof(out));

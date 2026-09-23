@@ -89,9 +89,9 @@ int main(void)
     display_key(&display, &gas, &history, GAS_KEY_SELECT, 102);
     assert(gas.item == GAS_ITEM_MQ6);
     display_key(&display, &gas, &history, GAS_KEY_UP, 103);
-    assert(gas.config.alarm[GAS_MQ6] == 2450);
+    assert(gas.config.alarm[GAS_MQ6] == 1850);
     display_key(&display, &gas, &history, GAS_KEY_DOWN, 104);
-    assert(gas.config.alarm[GAS_MQ6] == 2400);
+    assert(gas.config.alarm[GAS_MQ6] == 1800);
 
     /* 参数页要把全部 5 个可调项都画出来，光标跟着 item 走。此前它只循环
      * GAS_COUNT 画三路通道，KEY5 切到采样周期或蜂鸣器档位时光标会整个消失，

@@ -288,7 +288,7 @@ static void test_buzzer_keys(void)
     gas_key(&m, GAS_KEY_DOWN, T0);
     assert(m.config.buzzer == GAS_BUZZER_OFF);
 
-    assert(m.config.alarm[GAS_MQ4] == 2400u);
+    assert(m.config.alarm[GAS_MQ4] == 4000u);
     assert(m.config.sample_period_ms == 100u);
 }
 

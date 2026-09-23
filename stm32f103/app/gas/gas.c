@@ -228,17 +228,32 @@ void gas_update(gas_t *m, uint32_t now)
         return;
     }
     for (i = 0; i < GAS_COUNT; ++i) {
-        if (m->adc[i] >= m->config.alarm[i]) {
+        /* MQ4 is currently fed directly from a 5 V module without the
+         * documented divider, so its normal raw value is near full scale.
+         * Keep it out of the percentage thresholds until the hardware is
+         * corrected: only near-saturation warns, and a full-scale sample
+         * alarms. */
+        uint16_t alarm_limit = i == GAS_MQ4 ? 4095u : m->config.alarm[i];
+        uint16_t warning_limit = i == GAS_MQ4
+                                     ? 4000u
+                                     : gas_warning_threshold(m->config.alarm[i]);
+        uint16_t safe_limit = i == GAS_MQ4
+                                  ? 4000u
+                                  : gas_safe_threshold(m->config.alarm[i]);
+        uint16_t release_limit = i == GAS_MQ4
+                                     ? 4000u
+                                     : (uint16_t)((uint32_t)m->config.alarm[i] *
+                                                  GAS_SAFE_RELEASE_PERCENT / 100u);
+        if (m->adc[i] >= alarm_limit) {
             alarm |= (uint8_t)(1u << i);
         }
-        if (m->adc[i] >= gas_warning_threshold(m->config.alarm[i])) {
+        if (m->adc[i] >= warning_limit) {
             warning = true;
         }
-        if (m->adc[i] >= gas_safe_threshold(m->config.alarm[i])) {
+        if (m->adc[i] >= safe_limit) {
             safe_enter = false;
         }
-        if (m->adc[i] >= (uint16_t)((uint32_t)m->config.alarm[i] *
-                                     GAS_SAFE_RELEASE_PERCENT / 100u)) {
+        if (m->adc[i] >= release_limit) {
             safe_hold = false;
         }
     }

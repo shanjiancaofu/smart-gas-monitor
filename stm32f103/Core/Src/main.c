@@ -61,6 +61,22 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+/* Power is always present in the current hardware.  Hold the application at
+ * a safe, inactive startup gate until KEY5 is pressed, then release it
+ * before app_init() arms the normal warm-up/monitoring flow. */
+static void wait_for_start_key(void)
+{
+  while (HAL_GPIO_ReadPin(KEY5_GPIO_Port, KEY5_Pin) == GPIO_PIN_SET)
+  {
+    HAL_Delay(20);
+  }
+  HAL_Delay(30);
+  while (HAL_GPIO_ReadPin(KEY5_GPIO_Port, KEY5_Pin) == GPIO_PIN_RESET)
+  {
+    HAL_Delay(10);
+  }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -104,6 +120,7 @@ int main(void)
    * 电平触发生成的。本项目的蜂鸣器低电平触发，所以上电到 alarm_init() 之间它会
    * 一直响；这里先摆回空闲电平，别等 app_init()。 */
   bsp_buzzer_set(false);
+  wait_for_start_key();
   if (!app_init())
   {
     Error_Handler();
